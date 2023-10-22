@@ -90,6 +90,8 @@ int main(){
     Canvas* canvas = create_canvas(
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
     int noise[MAX_VIEW_AREA];
+		Canvas* old_canvas = create_canvas(
+			MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
     fractal_noise(0, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
     char* texture = " ./#";
@@ -105,15 +107,52 @@ int main(){
 							texture[(noise[offset] + ticks) / 16 % 4];
 					}
 				}
-        term_refresh(buffer, canvas);
+        term_refresh(buffer, canvas, old_canvas);
         ticks++;
 		usleep(1000000/60);
     }
     end_term();
     return 0;
 }
+/*
+void term_refresh_test(char* buffer, Canvas* canvas){
+	buffer[0] = '\x1b';
+	buffer[1] = '[';
+	buffer[2] = 'H';
+	char* pointer = buffer + 3;
+	for(int i=0; i<term_height; i++){
+		ADD('A');
+		MOVE(1);
+		ADD('B');
+		MOVE(1);
+		ADD('\n');
+	}
 
-void term_refresh(char* buffer, Canvas* canvas){
+	write(1, buffer, pointer - buffer);
+}
+*/
+
+void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
+	#define ADD(ch) *pointer++ = ch
+	#define MOVE(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist + '0'); \
+		ADD('C'); \
+		endline += 3; \
+		bottom_right_corner += 3
+	#define MOVE_10(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist / 10 + '0'); \
+		ADD(dist % 10 + '0'); \
+		ADD('C')
+	#define MOVE_100(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist / 100 + '0'); \
+		ADD((dist % 100) / 10 + '0'); \
+		ADD((dist % 100) % 10 + '0');
 	buffer[0] = '\x1b';
 	buffer[1] = '[';
 	buffer[2] = 'H';
@@ -122,13 +161,44 @@ void term_refresh(char* buffer, Canvas* canvas){
 	char* endline = pointer + term_width;
 	int x = 0;
 	int y = 0;
-	while(pointer < bottom_right_corner){
-		while(pointer < endline){
-			*pointer++ = canvas->cells[x++ + y * MAX_VIEW_WIDTH].character;
+	char prev_char = '\0';
+	int skip_length = 0;
+	for(y = 0; y < term_height; y++){
+		for(x = 0; x < term_width; x++){
+			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			if(next_char != old_char){
+				if(skip_length > 0){
+					if(skip_length < 5 ){
+						if(skip_length == 4)
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 4].character);
+						if(skip_length >= 3)
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 3].character);
+						if(skip_length >= 2)
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 2].character);
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 1].character);
+					} else if(skip_length >= 100){
+						MOVE_100(skip_length);
+					} else if(skip_length >= 10 && skip_length >= 4){
+						MOVE_10(skip_length);
+					} else {
+						MOVE(skip_length);
+					}
+				}
+					skip_length = 0;
+					ADD(next_char);
+			} else{
+				skip_length++;
+			}
 		}
-		endline += term_width;
-		y++;
-		x = 0;
+		skip_length = 0;
+		ADD('\n');
 	}
+	// Cut off that last newline so the screen doesn't scroll
+	pointer--;
 	write(1, buffer, pointer - buffer);
+	// Change this to a buffer flip instead of copying
+	Cell* temp = canvas->cells;
+	canvas->cells = old_canvas->cells;
+	old_canvas->cells = temp;
 }

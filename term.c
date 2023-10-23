@@ -12,6 +12,19 @@
 #include "term.h"
 #include "canvas.h"
 
+#define BLACK 30
+#define RED 31
+#define GREEN 32
+#define YELLOW 33
+#define BLUE 34
+#define MAGENTA 35
+#define CYAN 36
+#define WHITE 37
+
+#define BR_BLACK 90
+#define BR_RED 91
+#define BR_GREEN 92
+
 struct winsize ws;
 struct termios backup;
 struct termios t;
@@ -105,6 +118,8 @@ int main(){
 						int offset = x + y * MAX_VIEW_WIDTH;
 							canvas->cells[offset].character = 
 							texture[(noise[offset] + ticks) / 16 % 4];
+							canvas->cells[offset].color = 
+								((noise[offset] + ticks) / 64) % 8 + 30;
 					}
 				}
         term_refresh(buffer, canvas, old_canvas);
@@ -114,45 +129,9 @@ int main(){
     end_term();
     return 0;
 }
-/*
-void term_refresh_test(char* buffer, Canvas* canvas){
-	buffer[0] = '\x1b';
-	buffer[1] = '[';
-	buffer[2] = 'H';
-	char* pointer = buffer + 3;
-	for(int i=0; i<term_height; i++){
-		ADD('A');
-		MOVE(1);
-		ADD('B');
-		MOVE(1);
-		ADD('\n');
-	}
 
-	write(1, buffer, pointer - buffer);
-}
-*/
-
-void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
-	#define ADD(ch) *pointer++ = ch
-	#define MOVE(dist) \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist + '0'); \
-		ADD('C'); \
-		endline += 3; \
-		bottom_right_corner += 3
-	#define MOVE_10(dist) \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist / 10 + '0'); \
-		ADD(dist % 10 + '0'); \
-		ADD('C')
-	#define MOVE_100(dist) \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist / 100 + '0'); \
-		ADD((dist % 100) / 10 + '0'); \
-		ADD((dist % 100) % 10 + '0');
+/*I
+void term_refresh_mono(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	buffer[0] = '\x1b';
 	buffer[1] = '[';
 	buffer[2] = 'H';
@@ -196,6 +175,167 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;
+	write(1, buffer, pointer - buffer);
+	// Change this to a buffer flip instead of copying
+	Cell* temp = canvas->cells;
+	canvas->cells = old_canvas->cells;
+	old_canvas->cells = temp;
+}
+*/
+
+void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
+	#define ADD_UTF(utf_char){ \
+		*pointer++ = '\0'; \
+		strcat(buffer, utf_char); \
+		pointer += 2; \
+	}
+	#define ADD(ch) \
+		if(ch == '.'){ADD_UTF("\u2592");} \
+		else if(ch == '/'){ADD_UTF("\u2593");} \
+		else if(ch == '#'){ADD_UTF("\u2588");} \
+		else *pointer++ = ch
+	#define MOVE(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist + '0'); \
+		ADD('C');
+	#define MOVE_10(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist / 10 + '0'); \
+		ADD(dist % 10 + '0'); \
+		ADD('C')
+	#define COLOR(color) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(color / 10 + '0'); \
+		ADD(color % 10 + '0'); \
+		ADD('m')
+	#define MOVE_100(dist) \
+		ADD('\x1b'); \
+		ADD('['); \
+		ADD(dist / 100 + '0'); \
+		ADD((dist % 100) / 10 + '0'); \
+		ADD((dist % 100) % 10 + '0');
+	buffer[0] = '\x1b';
+	buffer[1] = '[';
+	buffer[2] = 'H';
+	char* pointer = buffer + 3;
+	char prev_char = '\0';
+	int skip_length = 0;
+	char fg_color = WHITE;
+	char bg_color = BLACK;
+
+	for(int y = 0; y < term_height; y++){
+		for(int x = 0; x < term_width; x++){
+			int offset = x + y * MAX_VIEW_WIDTH;
+			char next_fg_color = canvas->cells[offset].color;
+			char next_bg_color = canvas->cells[offset].bg_color;
+			if(fg_color != next_fg_color){
+				if(bg_color != next_bg_color){
+					ADD('\x1b');
+					ADD('[');
+					ADD(next_fg_color / 10 + '0');
+					ADD(next_fg_color % 10 + '0');
+					ADD(';');
+					ADD(next_bg_color / 10 + '0');
+					ADD(next_bg_color % 10 + '0');
+					ADD('m');
+					fg_color = next_fg_color;
+					bg_color = next_bg_color;
+				} else{
+					ADD('\x1b');
+					ADD('[');
+					ADD(next_fg_color / 10 + '0');
+					ADD(next_fg_color % 10 + '0');
+					ADD('m');
+					fg_color = next_fg_color;
+				}
+			} else if(bg_color != next_bg_color){
+					fg_color = next_fg_color;
+					ADD('\x1b');
+					ADD('[');
+					ADD(next_fg_color / 10 + '0');
+					ADD(next_fg_color % 10 + '0');
+					ADD('m');
+					bg_color = next_bg_color;
+			}
+
+			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			if(next_char != old_char){
+				if(skip_length > 0){
+					if(skip_length < 5 ){
+						char skip_char;
+						int offset = x + y * MAX_VIEW_WIDTH;
+						if(skip_length == 4){
+							skip_char = canvas->cells[offset - 4].character;
+							ADD(skip_char);
+							//ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 4].character);
+						}
+						if(skip_length >= 3)
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 3].character);
+						if(skip_length >= 2)
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 2].character);
+							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 1].character);
+					} else if(skip_length >= 100){
+						MOVE_100(skip_length);
+					} else if(skip_length >= 10 && skip_length >= 5){
+						MOVE_10(skip_length);
+					} else {
+						MOVE(skip_length);
+					}
+				}
+					skip_length = 0;					
+					if(next_char == '.'){
+						ADD('\0');
+						strcat(buffer, "\u2592");
+						pointer += 2;
+					} else if(next_char == '/'){
+						ADD('\0');
+						strcat(buffer, "\u2593");
+						pointer += 2;
+					} else if(next_char == '#'){
+						ADD('\0');
+						strcat(buffer, "\u2588");
+						pointer += 2;
+					} else{
+						ADD(next_char);
+					}
+			} else{
+				skip_length++;
+			}
+		}
+		skip_length = 0;
+		ADD('\n');
+	}
+	// Cut off that last newline so the screen doesn't scroll
+	pointer--;
+	*pointer = '\0';
+	printf(buffer);
+	//write(1, buffer, pointer - buffer);
+	// Change this to a buffer flip instead of copying
+	Cell* temp = canvas->cells;
+	canvas->cells = old_canvas->cells;
+	old_canvas->cells = temp;
+}
+
+void term_refresh_test(char* buffer, Canvas* canvas, Canvas* old_canvas){
+	buffer[0] = '\x1b';
+	buffer[1] = '[';
+	buffer[2] = 'H';
+	char* pointer = buffer + 3;
+	char fg_color = WHITE;
+	char bg_color = BLACK;
+	COLOR(WHITE);
+	for(int i=0; i<256; i++){
+		int offset = i % 8;
+		int color = offset + 30;
+		COLOR(color);
+		ADD(color / 10 + '0');
+		ADD(color % 10 + '0');
+	}
+
 	write(1, buffer, pointer - buffer);
 	// Change this to a buffer flip instead of copying
 	Cell* temp = canvas->cells;

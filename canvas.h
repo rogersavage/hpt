@@ -1,7 +1,7 @@
 typedef struct cell_struct{
     int color;
     int bg_color;
-    char character;
+    int character;
 } Cell;
 
 typedef struct canvas_struct{

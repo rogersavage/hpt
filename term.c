@@ -291,16 +291,11 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					// of characters added by the required escape sequence,
 					// this would result in a gain in buffer consumption instead
 					// of a reduction, so we have to check.
-					if(skip_length < 5 ){
+					if(skip_length < 4 ){
 						char skip_char;
 						int offset = x + y * MAX_VIEW_WIDTH;
 						
-						if(skip_length == 4){
-							skip_char = canvas->cells[offset - 4].character;
-							ADD(skip_char);
-						}
-					
-						if(skip_length >= 3){
+						if(skip_length == 3){
 							skip_char = canvas->cells[offset - 3].character;
 							ADD(skip_char);
 						}
@@ -312,7 +307,7 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 
 						skip_char = canvas->cells[offset - 1].character;
 						ADD(skip_char);
-					} else if(skip_length >= 10 && skip_length >= 5){
+					} else if(skip_length >= 10 && skip_length >= 4){
 						MOVE_10(skip_length);
 					// Since this move can only get us to the rightmost column,
 					// and it does not wrap around, a maximum skip length of 999

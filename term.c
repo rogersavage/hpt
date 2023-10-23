@@ -100,16 +100,34 @@ char input(){
 int main(){
     start_term();
     int ticks = 0;
+		// Main screenbuffer
     Canvas* canvas = create_canvas(
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-    int noise[MAX_VIEW_AREA];
+		// Alternate screenbuffer, used to skip
+		// redrawing cells redunantly
 		Canvas* old_canvas = create_canvas(
 			MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
+		// Fractal noise texture
+    int noise[MAX_VIEW_AREA];
     fractal_noise(0, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
+		// ASCII shading ramp
+		// Currently I'm intercepting these and replacing
+		// them with unicode extended characters
     char* texture = " ./#";
-    int buf_size = MAX_VIEW_AREA * 10 + 6;
+
+		// This is the encoded output string that will be
+		// assembled and then pushed to stdout once per frame.
+		// It needs to be have room for, theoretically
+		int max_chars_per_cell = 
+			7 // Change both fg and bg color
+			+ 2; // In case it's unicode
+    int buf_size = 
+			MAX_VIEW_AREA * max_chars_per_cell +
+			3 + // Signal to reset cursor
+			1; // Room for null terminator
     char* buffer = malloc(buf_size);
+
     int quit = 0;
     while(!quit){
         if (input() == 'q') quit = 1;
@@ -119,7 +137,8 @@ int main(){
 							canvas->cells[offset].character = 
 							texture[(noise[offset] + ticks) / 16 % 4];
 							canvas->cells[offset].color = 
-								((noise[offset] + ticks) / 64) % 8 + 30;
+								((noise[offset] + ticks) / 64) % 8 + 90;
+							canvas->cells[offset].bg_color = ticks / 512 % 8 + 40;
 					}
 				}
         term_refresh(buffer, canvas, old_canvas);
@@ -129,59 +148,6 @@ int main(){
     end_term();
     return 0;
 }
-
-/*I
-void term_refresh_mono(char* buffer, Canvas* canvas, Canvas* old_canvas){
-	buffer[0] = '\x1b';
-	buffer[1] = '[';
-	buffer[2] = 'H';
-	char* pointer = buffer + 3;
-	char* bottom_right_corner = term_width * term_height + pointer;
-	char* endline = pointer + term_width;
-	int x = 0;
-	int y = 0;
-	char prev_char = '\0';
-	int skip_length = 0;
-	for(y = 0; y < term_height; y++){
-		for(x = 0; x < term_width; x++){
-			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
-			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
-			if(next_char != old_char){
-				if(skip_length > 0){
-					if(skip_length < 5 ){
-						if(skip_length == 4)
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 4].character);
-						if(skip_length >= 3)
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 3].character);
-						if(skip_length >= 2)
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 2].character);
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 1].character);
-					} else if(skip_length >= 100){
-						MOVE_100(skip_length);
-					} else if(skip_length >= 10 && skip_length >= 4){
-						MOVE_10(skip_length);
-					} else {
-						MOVE(skip_length);
-					}
-				}
-					skip_length = 0;
-					ADD(next_char);
-			} else{
-				skip_length++;
-			}
-		}
-		skip_length = 0;
-		ADD('\n');
-	}
-	// Cut off that last newline so the screen doesn't scroll
-	pointer--;
-	write(1, buffer, pointer - buffer);
-	// Change this to a buffer flip instead of copying
-	Cell* temp = canvas->cells;
-	canvas->cells = old_canvas->cells;
-	old_canvas->cells = temp;
-}
-*/
 
 void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	#define ADD_UTF(utf_char){ \
@@ -271,7 +237,6 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 						if(skip_length == 4){
 							skip_char = canvas->cells[offset - 4].character;
 							ADD(skip_char);
-							//ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 4].character);
 						}
 						if(skip_length >= 3)
 							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 3].character);
@@ -311,33 +276,15 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;
+
+	// Add a null terminator so I can use fputs
 	*pointer = '\0';
-	printf(buffer);
+	// Using fputs instead of a raw write so I can get
+	// unicode characters
+	fputs(buffer, stdout);
 	//write(1, buffer, pointer - buffer);
-	// Change this to a buffer flip instead of copying
-	Cell* temp = canvas->cells;
-	canvas->cells = old_canvas->cells;
-	old_canvas->cells = temp;
-}
-
-void term_refresh_test(char* buffer, Canvas* canvas, Canvas* old_canvas){
-	buffer[0] = '\x1b';
-	buffer[1] = '[';
-	buffer[2] = 'H';
-	char* pointer = buffer + 3;
-	char fg_color = WHITE;
-	char bg_color = BLACK;
-	COLOR(WHITE);
-	for(int i=0; i<256; i++){
-		int offset = i % 8;
-		int color = offset + 30;
-		COLOR(color);
-		ADD(color / 10 + '0');
-		ADD(color % 10 + '0');
-	}
-
-	write(1, buffer, pointer - buffer);
-	// Change this to a buffer flip instead of copying
+	
+	// Flip buffer
 	Cell* temp = canvas->cells;
 	canvas->cells = old_canvas->cells;
 	old_canvas->cells = temp;

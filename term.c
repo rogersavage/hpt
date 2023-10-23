@@ -151,10 +151,11 @@ int main(){
 		// This is a gradient ramp, with dithering symbols
 		// of increasing intensity
     char texture[] = {
+			' ',
 			LIGHT_SHADE, 
 			SHADE, 
 			DARK_SHADE, 
-			FULL_BLOCK
+			//FULL_BLOCK
 		};
 
 		// This is the encoded output string that will be

@@ -12,6 +12,11 @@
 #include "term.h"
 #include "canvas.h"
 
+// ANSI 8+8 colors
+// I've tried this different ways,
+// I figure since I can't guarantee bright backgrounds are
+// available, there's no use in breaking up the colors into two
+// digits. (I.e. since my TTY can't do BRIGHT_BG + GREEN).
 #define BLACK 30
 #define RED 31
 #define GREEN 32
@@ -24,7 +29,33 @@
 #define BR_BLACK 90
 #define BR_RED 91
 #define BR_GREEN 92
+#define BR_YELLOW 93
+#define BR_BLUE 94
+#define BR_MAGENTA 95
+#define BR_CYAN 96
+#define BR_WHITE 97
 
+#define BG_BLACK 40
+#define BG_RED 41
+#define BG_GREEN 42
+#define BG_YELLOW 43
+#define BG_BLUE 44
+#define BG_MAGENTA 45
+#define BG_CYAN 46
+#define BG_WHITE 47
+
+// I'm using extended UTF-8 symbols that require a three-byte
+// sequence. The first two bytes are always the same,
+// and for the third I use these defines to make them readable
+#define UTF_BYTE_0 0xE2
+#define UTF_BYTE_1 0x96
+
+#define LIGHT_SHADE 0x91
+#define SHADE 0x92
+#define DARK_SHADE 0x93
+#define FULL_BLOCK 0x88 
+
+// Globals related to terminal settings and properties.
 struct winsize ws;
 struct termios backup;
 struct termios t;
@@ -100,28 +131,41 @@ char input(){
 int main(){
     start_term();
     int ticks = 0;
+
 		// Main screenbuffer
     Canvas* canvas = create_canvas(
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
+
 		// Alternate screenbuffer, used to skip
-		// redrawing cells redunantly
+		// redrawing cells redunantly.
+		// This is by far the most important performance
+		// aspect in this code.
 		Canvas* old_canvas = create_canvas(
 			MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
+
 		// Fractal noise texture
     int noise[MAX_VIEW_AREA];
     fractal_noise(0, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
-		// ASCII shading ramp
-		// Currently I'm intercepting these and replacing
-		// them with unicode extended characters
-    char* texture = " ./#";
+
+		// This is a gradient ramp, with dithering symbols
+		// of increasing intensity
+    char texture[] = {
+			LIGHT_SHADE, 
+			SHADE, 
+			DARK_SHADE, 
+			FULL_BLOCK
+		};
 
 		// This is the encoded output string that will be
 		// assembled and then pushed to stdout once per frame.
 		// It needs to be have room for, theoretically
+		// a color change sequence for every single cell,
+		// as well as two extra characters in case it's
+		// a unicode symbol.
 		int max_chars_per_cell = 
 			7 // Change both fg and bg color
-			+ 2; // In case it's unicode
+			+ 3; // In case it's unicode
     int buf_size = 
 			MAX_VIEW_AREA * max_chars_per_cell +
 			3 + // Signal to reset cursor
@@ -150,15 +194,18 @@ int main(){
 }
 
 void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
+	// None of this uses C std string functions. Instead I build the
+	// output buffer by inserting the new character and incrementing
+	// the insertion pointer.
 	#define ADD_UTF(utf_char){ \
-		*pointer++ = '\0'; \
-		strcat(buffer, utf_char); \
-		pointer += 2; \
+		*pointer++ = UTF_BYTE_0; \
+		*pointer++ = UTF_BYTE_1; \
+		*pointer++ = utf_char; \
 	}
 	#define ADD(ch) \
-		if(ch == '.'){ADD_UTF("\u2592");} \
-		else if(ch == '/'){ADD_UTF("\u2593");} \
-		else if(ch == '#'){ADD_UTF("\u2588");} \
+		if(ch == (char)LIGHT_SHADE){ADD_UTF(LIGHT_SHADE);} \
+		else if(ch == (char)SHADE){ADD_UTF(SHADE);} \
+		else if(ch == (char)DARK_SHADE){ADD_UTF(DARK_SHADE);} \
 		else *pointer++ = ch
 	#define MOVE(dist) \
 		ADD('\x1b'); \
@@ -197,6 +244,8 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 			int offset = x + y * MAX_VIEW_WIDTH;
 			char next_fg_color = canvas->cells[offset].color;
 			char next_bg_color = canvas->cells[offset].bg_color;
+			
+			// Check if either or both the fg/bg color needs to be changed
 			if(fg_color != next_fg_color){
 				if(bg_color != next_bg_color){
 					ADD('\x1b');
@@ -227,10 +276,16 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					bg_color = next_bg_color;
 			}
 
+			// Compare next character to character already onscreen,
+			// To see if we can just skip it.
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			if(next_char != old_char){
 				if(skip_length > 0){
+					// If the length of our skip would be shorter than the number
+					// of characters added by the required escape sequence,
+					// this would result in a gain in buffer consumption instead
+					// of a reduction, so we have to check.
 					if(skip_length < 5 ){
 						char skip_char;
 						int offset = x + y * MAX_VIEW_WIDTH;
@@ -243,46 +298,32 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 						if(skip_length >= 2)
 							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 2].character);
 							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 1].character);
-					} else if(skip_length >= 100){
-						MOVE_100(skip_length);
 					} else if(skip_length >= 10 && skip_length >= 5){
 						MOVE_10(skip_length);
+					// Since this move can only get us to the rightmost column,
+					// and it does not wrap around, a maximum skip length of 999
+					// will always be adequate.
+					// I could come back later and see about a multi-line skip
+					// routine that would calculate the new C;R cursor pos and use
+					// a different escape sequence.
+					} else if(skip_length >= 100){
+						MOVE_100(skip_length);
 					} else {
 						MOVE(skip_length);
 					}
 				}
-					skip_length = 0;					
-					if(next_char == '.'){
-						ADD('\0');
-						strcat(buffer, "\u2592");
-						pointer += 2;
-					} else if(next_char == '/'){
-						ADD('\0');
-						strcat(buffer, "\u2593");
-						pointer += 2;
-					} else if(next_char == '#'){
-						ADD('\0');
-						strcat(buffer, "\u2588");
-						pointer += 2;
-					} else{
-						ADD(next_char);
-					}
-			} else{
-				skip_length++;
+				skip_length = 0;					
+				ADD(next_char);
+				} else{
+					skip_length++;
+				}
 			}
-		}
 		skip_length = 0;
 		ADD('\n');
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;
-
-	// Add a null terminator so I can use fputs
-	*pointer = '\0';
-	// Using fputs instead of a raw write so I can get
-	// unicode characters
-	fputs(buffer, stdout);
-	//write(1, buffer, pointer - buffer);
+	write(1, buffer, pointer - buffer);
 	
 	// Flip buffer
 	Cell* temp = canvas->cells;

@@ -53,6 +53,9 @@
 #define LIGHT_SHADE 0x91
 #define SHADE 0x92
 #define DARK_SHADE 0x93
+
+// Full block seems to be available less often than the others,
+// so I might just do without it.
 #define FULL_BLOCK 0x88 
 
 // Globals related to terminal settings and properties.
@@ -151,11 +154,11 @@ int main(){
 		// This is a gradient ramp, with dithering symbols
 		// of increasing intensity
     char texture[] = {
-			' ',
+			//' ',
 			LIGHT_SHADE, 
 			SHADE, 
 			DARK_SHADE, 
-			//FULL_BLOCK
+			FULL_BLOCK
 		};
 
 		// This is the encoded output string that will be
@@ -281,7 +284,8 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 			// To see if we can just skip it.
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
-			if(next_char != old_char){
+			if(next_char == old_char) skip_length++;
+			else{
 				if(skip_length > 0){
 					// If the length of our skip would be shorter than the number
 					// of characters added by the required escape sequence,
@@ -290,15 +294,24 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					if(skip_length < 5 ){
 						char skip_char;
 						int offset = x + y * MAX_VIEW_WIDTH;
+						
 						if(skip_length == 4){
 							skip_char = canvas->cells[offset - 4].character;
 							ADD(skip_char);
 						}
-						if(skip_length >= 3)
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 3].character);
-						if(skip_length >= 2)
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 2].character);
-							ADD(canvas->cells[x + y * MAX_VIEW_WIDTH - 1].character);
+					
+						if(skip_length >= 3){
+							skip_char = canvas->cells[offset - 3].character;
+							ADD(skip_char);
+						}
+
+						if(skip_length >= 2){
+							skip_char = canvas->cells[offset - 2].character;
+							ADD(skip_char);
+						}
+
+						skip_char = canvas->cells[offset - 1].character;
+						ADD(skip_char);
 					} else if(skip_length >= 10 && skip_length >= 5){
 						MOVE_10(skip_length);
 					// Since this move can only get us to the rightmost column,
@@ -315,12 +328,10 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 				}
 				skip_length = 0;					
 				ADD(next_char);
-				} else{
-					skip_length++;
-				}
 			}
-		skip_length = 0;
+		}
 		ADD('\n');
+		skip_length = 0;
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;

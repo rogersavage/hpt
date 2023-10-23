@@ -11,4 +11,5 @@ Dark Shade	- U+2593
 The terminal needs to be set to UTF-8 encoding, and the font needs to
 have these Block Element characters available.
 
-
+On my system, I use the font named "VGA" in my TTY sessions, by running
+sudo dpkg-reconfigure console-setup.

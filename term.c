@@ -56,7 +56,7 @@
 
 // Full block seems to be available less often than the others,
 // so I might just do without it.
-#define FULL_BLOCK 0x88 
+#define FULL_BLOCK 0x88
 
 // Globals related to terminal settings and properties.
 struct winsize ws;
@@ -64,6 +64,8 @@ struct termios backup;
 struct termios t;
 int term_width, term_height;
 int display_width, display_height;
+
+int biggest_buffer, smallest_buffer;
 
 void die(int i){
     exit(1);
@@ -132,6 +134,8 @@ char input(){
 }
 
 int main(){
+	biggest_buffer = 0;
+	smallest_buffer = MAX_VIEW_AREA;
     start_term();
     int ticks = 0;
 
@@ -148,17 +152,17 @@ int main(){
 
 		// Fractal noise texture
     int noise[MAX_VIEW_AREA];
-    fractal_noise(0, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
+    fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
 
 		// This is a gradient ramp, with dithering symbols
 		// of increasing intensity
     char texture[] = {
-			//' ',
+			' ',
 			LIGHT_SHADE, 
 			SHADE, 
 			DARK_SHADE, 
-			FULL_BLOCK
+			//FULL_BLOCK
 		};
 
 		// This is the encoded output string that will be
@@ -183,17 +187,36 @@ int main(){
 					for(int x=0; x<term_width; x++){
 						int offset = x + y * MAX_VIEW_WIDTH;
 							canvas->cells[offset].character = 
-							texture[(noise[offset] + ticks) / 16 % 4];
+							texture[(noise[offset] + ticks) / 8 % 4];
 							canvas->cells[offset].color = 
 								((noise[offset] + ticks) / 64) % 8 + 90;
 							canvas->cells[offset].bg_color = ticks / 512 % 8 + 40;
 					}
 				}
+
+				/*
+				for(int y=0; y<8; y++){
+				for(int x=0; x<32; x++){
+					int offset = x + y * MAX_VIEW_WIDTH;
+					canvas->cells[offset].color = x / 4 + 30;
+					canvas->cells[offset].bg_color = y + 40;
+					canvas->cells[offset].character = texture[x % 5];
+				}
+				for(int x=32; x<64; x++){
+					int offset = x + y * MAX_VIEW_WIDTH;
+					canvas->cells[offset].color = (x - 32) / 4 + 90;
+					canvas->cells[offset].bg_color = y + 40;
+					canvas->cells[offset].character = texture[x % 5];
+				}
+				}
+				*/
         term_refresh(buffer, canvas, old_canvas);
         ticks++;
 		usleep(1000000/60);
     }
     end_term();
+		printf("Biggest buffer: %d\n", biggest_buffer);
+		printf("Smallest buffer: %d\n", smallest_buffer);
     return 0;
 }
 
@@ -244,7 +267,7 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	char bg_color = BLACK;
 
 	for(int y = 0; y < term_height; y++){
-		for(int x = 0; x < term_width; x++){
+		for(int x = 0; x <= term_width; x++){
 			int offset = x + y * MAX_VIEW_WIDTH;
 			char next_fg_color = canvas->cells[offset].color;
 			char next_bg_color = canvas->cells[offset].bg_color;
@@ -284,7 +307,9 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 			// To see if we can just skip it.
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
-			if(next_char == old_char) skip_length++;
+			if(next_char == old_char &&
+					next_fg_color == fg_color &&
+					next_bg_color == bg_color) skip_length++;
 			else{
 				if(skip_length > 0){
 					// If the length of our skip would be shorter than the number
@@ -325,12 +350,16 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 				ADD(next_char);
 			}
 		}
-		ADD('\n');
-		skip_length = 0;
+		if(skip_length > 0) {
+			ADD('\n');
+			skip_length = 0;
+		}
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;
 	write(1, buffer, pointer - buffer);
+	if(smallest_buffer > pointer - buffer) smallest_buffer = pointer - buffer;
+	if(biggest_buffer < pointer - buffer) biggest_buffer = pointer - buffer;
 	
 	// Flip buffer
 	Cell* temp = canvas->cells;

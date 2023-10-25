@@ -6,17 +6,13 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "fractal_noise.h"
 #include "constants.h"
 #include "term.h"
 #include "canvas.h"
 
-// ANSI 8+8 colors
-// I've tried this different ways,
-// I figure since I can't guarantee bright backgrounds are
-// available, there's no use in breaking up the colors into two
-// digits. (I.e. since my TTY can't do BRIGHT_BG + GREEN).
 #define BLACK 30
 #define RED 31
 #define GREEN 32
@@ -47,15 +43,12 @@
 // I'm using extended UTF-8 symbols that require a three-byte
 // sequence. The first two bytes are always the same,
 // and for the third I use these defines to make them readable
+
 #define UTF_BYTE_0 0xE2
 #define UTF_BYTE_1 0x96
-
 #define LIGHT_SHADE 0x91
 #define SHADE 0x92
 #define DARK_SHADE 0x93
-
-// Full block seems to be available less often than the others,
-// so I might just do without it.
 #define FULL_BLOCK 0x88
 
 // Globals related to terminal settings and properties.
@@ -134,6 +127,7 @@ char input(){
 }
 
 int main(){
+	srand(time(NULL));
 	biggest_buffer = 0;
 	smallest_buffer = MAX_VIEW_AREA;
     start_term();
@@ -160,9 +154,12 @@ int main(){
     char texture[] = {
 			' ',
 			LIGHT_SHADE, 
+			LIGHT_SHADE, 
+			SHADE, 
 			SHADE, 
 			DARK_SHADE, 
-			//FULL_BLOCK
+			DARK_SHADE, 
+			FULL_BLOCK,
 		};
 
 		// This is the encoded output string that will be
@@ -182,39 +179,31 @@ int main(){
 
     int quit = 0;
     while(!quit){
-        if (input() == 'q') quit = 1;
+				char user_input = input();
+        if (user_input == 'q') quit = 1;
 				for(int y=0; y<term_height; y++){
 					for(int x=0; x<term_width; x++){
 						int offset = x + y * MAX_VIEW_WIDTH;
 							canvas->cells[offset].character = 
-							texture[(noise[offset] + ticks) / 8 % 4];
-							canvas->cells[offset].color = 
-								((noise[offset] + ticks) / 64) % 8 + 90;
-							canvas->cells[offset].bg_color = ticks / 512 % 8 + 40;
+							texture[(noise[offset] + ticks) / 8 % 8];
+							int color = 
+								((noise[offset] + ticks) / 16) % 16;
+							int brightness = 30;
+							if(color % 2 == 0){
+								brightness = 90;
+							}
+							color /= 2;
+							color += brightness;
+							canvas->cells[offset].color = color;
+							canvas->cells[offset].bg_color = ticks / 128 % 8 + 100;
 					}
 				}
-
-				/*
-				for(int y=0; y<8; y++){
-				for(int x=0; x<32; x++){
-					int offset = x + y * MAX_VIEW_WIDTH;
-					canvas->cells[offset].color = x / 4 + 30;
-					canvas->cells[offset].bg_color = y + 40;
-					canvas->cells[offset].character = texture[x % 5];
-				}
-				for(int x=32; x<64; x++){
-					int offset = x + y * MAX_VIEW_WIDTH;
-					canvas->cells[offset].color = (x - 32) / 4 + 90;
-					canvas->cells[offset].bg_color = y + 40;
-					canvas->cells[offset].character = texture[x % 5];
-				}
-				}
-				*/
         term_refresh(buffer, canvas, old_canvas);
         ticks++;
 		usleep(1000000/60);
     }
     end_term();
+		printf("Term dimensions: %d x %d\n", term_width, term_height);
 		printf("Biggest buffer: %d\n", biggest_buffer);
 		printf("Smallest buffer: %d\n", smallest_buffer);
     return 0;
@@ -233,6 +222,7 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 		if(ch == (char)LIGHT_SHADE){ADD_UTF(LIGHT_SHADE);} \
 		else if(ch == (char)SHADE){ADD_UTF(SHADE);} \
 		else if(ch == (char)DARK_SHADE){ADD_UTF(DARK_SHADE);} \
+		else if(ch == (char)FULL_BLOCK){ADD_UTF(FULL_BLOCK);} \
 		else *pointer++ = ch
 	#define MOVE(dist) \
 		ADD('\x1b'); \
@@ -245,12 +235,6 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 		ADD(dist / 10 + '0'); \
 		ADD(dist % 10 + '0'); \
 		ADD('C')
-	#define COLOR(color) \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(color / 10 + '0'); \
-		ADD(color % 10 + '0'); \
-		ADD('m')
 	#define MOVE_100(dist) \
 		ADD('\x1b'); \
 		ADD('['); \
@@ -280,7 +264,7 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					ADD(next_fg_color / 10 + '0');
 					ADD(next_fg_color % 10 + '0');
 					ADD(';');
-					ADD(next_bg_color / 10 + '0');
+					ADD('4');
 					ADD(next_bg_color % 10 + '0');
 					ADD('m');
 					fg_color = next_fg_color;
@@ -297,8 +281,8 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					fg_color = next_fg_color;
 					ADD('\x1b');
 					ADD('[');
-					ADD(next_fg_color / 10 + '0');
-					ADD(next_fg_color % 10 + '0');
+					ADD('4');
+					ADD(next_bg_color % 10 + '0');
 					ADD('m');
 					bg_color = next_bg_color;
 			}
@@ -312,34 +296,21 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					next_bg_color == bg_color) skip_length++;
 			else{
 				if(skip_length > 0){
-					// If the length of our skip would be shorter than the number
-					// of characters added by the required escape sequence,
-					// this would result in a gain in buffer consumption instead
-					// of a reduction, so we have to check.
 					if(skip_length < 4 ){
 						char skip_char;
 						int offset = x + y * MAX_VIEW_WIDTH;
-						
 						if(skip_length == 3){
 							skip_char = canvas->cells[offset - 3].character;
 							ADD(skip_char);
 						}
-
 						if(skip_length >= 2){
 							skip_char = canvas->cells[offset - 2].character;
 							ADD(skip_char);
 						}
-
 						skip_char = canvas->cells[offset - 1].character;
 						ADD(skip_char);
 					} else if(skip_length >= 10 && skip_length >= 4){
 						MOVE_10(skip_length);
-					// Since this move can only get us to the rightmost column,
-					// and it does not wrap around, a maximum skip length of 999
-					// will always be adequate.
-					// I could come back later and see about a multi-line skip
-					// routine that would calculate the new C;R cursor pos and use
-					// a different escape sequence.
 					} else if(skip_length >= 100){
 						MOVE_100(skip_length);
 					} else {

@@ -179,7 +179,7 @@ void paint_cell(Canvas* canvas, int x, int y, int index){
 
 
 int main(){
-	FILE* tty = fopen("/dev/pts/0", "w");
+	FILE* tty = fopen(ttyname(STDIN_FILENO), "w");
 
 	srand(time(NULL));
 	init_palette();

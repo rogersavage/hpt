@@ -280,6 +280,7 @@ int main(){
         ticks++;
 		usleep(1000000/60);
     }
+		fflush(tty);
     end_term();
 		printf("Term dimensions: %d x %d\n", term_width, term_height);
 		printf("Biggest buffer: %d\n", biggest_buffer);

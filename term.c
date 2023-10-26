@@ -13,33 +13,6 @@
 #include "term.h"
 #include "canvas.h"
 
-#define BLACK 30
-#define RED 31
-#define GREEN 32
-#define YELLOW 33
-#define BLUE 34
-#define MAGENTA 35
-#define CYAN 36
-#define WHITE 37
-
-#define BR_BLACK 90
-#define BR_RED 91
-#define BR_GREEN 92
-#define BR_YELLOW 93
-#define BR_BLUE 94
-#define BR_MAGENTA 95
-#define BR_CYAN 96
-#define BR_WHITE 97
-
-#define BG_BLACK 40
-#define BG_RED 41
-#define BG_GREEN 42
-#define BG_YELLOW 43
-#define BG_BLUE 44
-#define BG_MAGENTA 45
-#define BG_CYAN 46
-#define BG_WHITE 47
-
 // I'm using extended UTF-8 symbols that require a three-byte
 // sequence. The first two bytes are always the same,
 // and for the third I use these defines to make them readable
@@ -126,8 +99,90 @@ char input(){
     return ch;
 }
 
+typedef struct Color{
+	int fg;
+	int bg;
+	char c;
+} Color;
+
+Color palette[200];
+
+void init_palette(){
+	int offset = 0;
+	for(int i=0; i<200; i++){
+		palette[i].fg = 91;
+		palette[i].bg = 46;
+		palette[i].c = '?';
+	}
+
+	// Dim Quarter-Shade
+	for(int bg=0; bg<8; bg++){
+		for(int fg=0; fg<8; fg++){
+			if(fg == bg) continue;
+			palette[offset].fg = fg + 30;
+			palette[offset].bg = bg + 40;
+			palette[offset++].c = LIGHT_SHADE; 
+		}
+	}
+
+	// Dim Half-Shade
+	int j=1;
+	for(int bg=0; bg<8; bg++){
+		for(int fg=j++; fg<8; fg++){
+			palette[offset].fg = fg + 30;
+			palette[offset].bg = bg + 40;
+			palette[offset++].c = SHADE;
+		}
+	}
+
+	// Dim
+	for(int i=0; i<8; i++){
+		palette[offset].fg = 0;
+		palette[offset].bg = i + 40;
+		palette[offset++].c = ' ';
+	}
+
+	// Bright Quarter-Shade
+	for(int bg=0; bg<8; bg++){
+		for(int fg=0; fg<8; fg++){
+			palette[offset].fg = fg + 90;
+			palette[offset].bg = bg + 40;
+			palette[offset++].c = LIGHT_SHADE;
+		}
+	}
+
+	// Bright Half-Shade
+	j=0;
+	for(int bg=0; bg<8; bg++){
+		for(int fg=j++; fg<8; fg++){
+			palette[offset].fg = fg + 90;
+			palette[offset].bg = bg + 40;
+			palette[offset++].c = SHADE; 
+		}
+	}
+
+
+	// Full Bright
+	for(int fg = 0; fg<8; fg++){
+		palette[offset].fg = fg + 90;
+		palette[offset].bg = fg + 40;
+		palette[offset++].c = FULL_BLOCK;
+	}
+}
+
+void paint_cell(Canvas* canvas, int x, int y, int index){
+	int offset = x + y * MAX_VIEW_WIDTH;
+	canvas->cells[offset].color = palette[index].fg;
+	canvas->cells[offset].bg_color = palette[index].bg;
+	canvas->cells[offset].character = palette[index].c;
+}
+
+
 int main(){
+	FILE* tty = fopen("/dev/pts/0", "w");
+
 	srand(time(NULL));
+	init_palette();
 	biggest_buffer = 0;
 	smallest_buffer = MAX_VIEW_AREA;
     start_term();
@@ -153,6 +208,7 @@ int main(){
 		// of increasing intensity
     char texture[] = {
 			' ',
+			/*
 			LIGHT_SHADE, 
 			LIGHT_SHADE, 
 			SHADE, 
@@ -160,6 +216,10 @@ int main(){
 			DARK_SHADE, 
 			DARK_SHADE, 
 			FULL_BLOCK,
+			*/
+			'.',
+			'/',
+			'#'
 		};
 
 		// This is the encoded output string that will be
@@ -184,8 +244,9 @@ int main(){
 				for(int y=0; y<term_height; y++){
 					for(int x=0; x<term_width; x++){
 						int offset = x + y * MAX_VIEW_WIDTH;
+						/*
 							canvas->cells[offset].character = 
-							texture[(noise[offset] + ticks) / 8 % 8];
+							texture[(noise[offset] + ticks) / 8 % 4];
 							int color = 
 								((noise[offset] + ticks) / 16) % 16;
 							int brightness = 30;
@@ -196,9 +257,26 @@ int main(){
 							color += brightness;
 							canvas->cells[offset].color = color;
 							canvas->cells[offset].bg_color = ticks / 128 % 8 + 100;
+							*/
+						paint_cell(canvas, x, y,
+								(noise[offset] + ticks) / 8 % 200);
 					}
 				}
-        term_refresh(buffer, canvas, old_canvas);
+				/*
+				for(int j=1; j<16; j++){
+				for(int i=0; i<term_width - 1; i++){
+					paint_cell(canvas, i, j, i);
+				}
+				}
+
+				for(int j=16; j<32; j++){
+				for(int i=term_width; i<200; i++){
+					paint_cell(canvas, i - term_width, j, i);
+				}
+				}
+				*/
+
+        term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;
 		usleep(1000000/60);
     }
@@ -209,7 +287,9 @@ int main(){
     return 0;
 }
 
-void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
+
+void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas,
+		FILE* tty){
 	// None of this uses C std string functions. Instead I build the
 	// output buffer by inserting the new character and incrementing
 	// the insertion pointer.
@@ -247,15 +327,20 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	char* pointer = buffer + 3;
 	char prev_char = '\0';
 	int skip_length = 0;
-	char fg_color = WHITE;
-	char bg_color = BLACK;
+	int fg_color;
+	int bg_color;
 
 	for(int y = 0; y < term_height; y++){
+		fg_color = -1;
+		bg_color = -1;
 		for(int x = 0; x <= term_width; x++){
 			int offset = x + y * MAX_VIEW_WIDTH;
-			char next_fg_color = canvas->cells[offset].color;
-			char next_bg_color = canvas->cells[offset].bg_color;
+			int next_fg_color = canvas->cells[offset].color;
+			int next_bg_color = canvas->cells[offset].bg_color;
 			
+			int old_fg= old_canvas->cells[offset].color;
+			int old_bg = old_canvas->cells[offset].bg_color;
+
 			// Check if either or both the fg/bg color needs to be changed
 			if(fg_color != next_fg_color){
 				if(bg_color != next_bg_color){
@@ -278,7 +363,6 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 					fg_color = next_fg_color;
 				}
 			} else if(bg_color != next_bg_color){
-					fg_color = next_fg_color;
 					ADD('\x1b');
 					ADD('[');
 					ADD('4');
@@ -289,11 +373,12 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 
 			// Compare next character to character already onscreen,
 			// To see if we can just skip it.
+			//int offset = x + y + MAX_VIEW_WIDTH;
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			if(next_char == old_char &&
-					next_fg_color == fg_color &&
-					next_bg_color == bg_color) skip_length++;
+					next_fg_color == old_fg &&
+					next_bg_color == old_bg) skip_length++;
 			else{
 				if(skip_length > 0){
 					if(skip_length < 4 ){
@@ -328,7 +413,7 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas){
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	pointer--;
-	write(1, buffer, pointer - buffer);
+	fwrite(buffer, 1, pointer - buffer, tty);
 	if(smallest_buffer > pointer - buffer) smallest_buffer = pointer - buffer;
 	if(biggest_buffer < pointer - buffer) biggest_buffer = pointer - buffer;
 	

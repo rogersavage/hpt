@@ -106,7 +106,7 @@ typedef struct Color{
 	char c;
 } Color;
 
-Color palette[200];
+Color palette[264];
 
 void init_palette(){
 	int offset = 0;
@@ -162,6 +162,14 @@ void init_palette(){
 		}
 	}
 
+	// Bright Three-Quarter-Shade
+	for(int bg=0; bg<8; bg++){
+		for(int fg=0; fg<8; fg++){
+			palette[offset].fg = fg + 90;
+			palette[offset].bg = bg + 40;
+			palette[offset++].c = DARK_SHADE;
+		}
+	}
 
 	// Full Bright
 	for(int fg = 0; fg<8; fg++){
@@ -178,9 +186,32 @@ void paint_cell(Canvas* canvas, int x, int y, int index){
 	canvas->cells[offset].character = palette[index].c;
 }
 
+void animate_fractal_noise(Canvas* canvas, int* noise, int ticks){
+    for(int y=0; y<term_height; y++){
+        for(int x=0; x<term_width; x++){
+            int offset = x + y * MAX_VIEW_WIDTH;
+            paint_cell(canvas, x, y,
+                    (noise[offset] + ticks) / 12 % 264);
+        }
+    }
+}
+
+void draw_color_bars(Canvas* canvas){
+    int y = 0;
+    int x = 0;
+    for(int i=0; i<264; i++){
+        paint_cell(canvas, i + x, y, i);
+        if(i > 0 && i % term_width == 0){
+            y += 1;
+            x -= term_width;
+        }
+    }
+}
+
 
 int main(){
 	//FILE* tty = fopen(ttyname(STDIN_FILENO), "w");
+
 	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
 
 	srand(time(NULL));
@@ -245,38 +276,8 @@ int main(){
     while(!quit){
 				char user_input = input();
         if (user_input == 'q') quit = 1;
-				for(int y=0; y<term_height; y++){
-					for(int x=0; x<term_width; x++){
-						int offset = x + y * MAX_VIEW_WIDTH;
-							canvas->cells[offset].character = 
-							texture[(noise[offset] + ticks) / 8 % 4];
-							int color = 
-								((noise[offset] + ticks) / 16) % 16;
-							int brightness = 30;
-							if(color % 2 == 0){
-								brightness = 90;
-							}
-							color /= 2;
-							color += brightness;
-							canvas->cells[offset].color = color;
-							canvas->cells[offset].bg_color = ticks / 128 % 8 + 100;
-						paint_cell(canvas, x, y,
-								(noise[offset] + ticks) / 12 % 200);
-					}
-				}
-				/*
-				for(int j=0; j<term_height/2; j++){
-				for(int i=0; i<92; i++){
-					paint_cell(canvas, i, j, i);
-				}
-				}
-
-				for(int j=term_height/2; j<term_height; j++){
-				for(int i=92; i<200; i++){
-					paint_cell(canvas, i - 92, j, i);
-				}
-				}
-				*/
+            //animate_fractal_noise(canvas, noise, ticks);
+            draw_color_bars(canvas);
 
         term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;
@@ -292,10 +293,7 @@ int main(){
 
 
 void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas,
-		int tty){
-	// None of this uses C std string functions. Instead I build the
-	// output buffer by inserting the new character and incrementing
-	// the insertion pointer.
+int tty){
 	#define ADD_UTF(utf_char){ \
 		*pointer++ = UTF_BYTE_0; \
 		*pointer++ = UTF_BYTE_1; \
@@ -307,25 +305,6 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas,
 		else if(ch == (char)DARK_SHADE){ADD_UTF(DARK_SHADE);} \
 		else if(ch == (char)FULL_BLOCK){ADD_UTF(FULL_BLOCK);} \
 		else *pointer++ = ch
-	#define MOVE(dist) \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist + '0'); \
-		ADD('C');
-	#define MOVE_10(dist){ \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist / 10 + '0'); \
-		ADD(dist % 10 + '0'); \
-		ADD('C'); \
-	}
-	#define MOVE_100(dist){ \
-		ADD('\x1b'); \
-		ADD('['); \
-		ADD(dist / 100 + '0'); \
-		ADD((dist % 100) / 10 + '0'); \
-		ADD((dist % 100) % 10 + '0'); \
-	}
 	buffer[0] = '\x1b';
 	buffer[1] = '[';
 	buffer[2] = 'H';
@@ -343,12 +322,12 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas,
 		for(int i=0; i<strlen(temp); i++){
 			ADD(temp[i]);
 		}
+
 		for(int x = 0; x < term_width; x++){
 			int offset = x + y * MAX_VIEW_WIDTH;
 			int next_fg_color = canvas->cells[offset].color;
 			int next_bg_color = canvas->cells[offset].bg_color;
-			
-			int old_fg= old_canvas->cells[offset].color;
+			int old_fg = old_canvas->cells[offset].color;
 			int old_bg = old_canvas->cells[offset].bg_color;
 
 			// Check if either or both the fg/bg color needs to be changed
@@ -388,33 +367,24 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* old_canvas,
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			
 			if(next_char == old_char &&
-					next_fg_color == old_fg &&
-					next_bg_color == old_bg){
-					skip_length++;
-					//ADD(' ');
-					//ADD('\x1b');
-					//ADD('[');
-					//ADD('C');
-					continue;
-
+                next_fg_color == old_fg &&
+                next_bg_color == old_bg){
+			    skip_length++;
 			}
-			char temp[12];
 			if(skip_length > 0){
 				//Why doesn't this work?
-				/*
 				if(skip_length < 6){
-					for(int i=0; i<skip_length; i++){
+					for(int i=0; i<skip_length - 1; i++){
 						ADD(canvas->cells[offset - 1].character);
 					}
 				} else{
-				*/
 					ADD('\x1b');
 					ADD('[');
 					if(x > 99) ADD((x) / 100 + '0');
 					if(x > 9) ADD((x) % 100 / 10 + '0');
 					ADD((x) % 10 + '0');
 					ADD('G');
-				//}
+				}
 			}
 			ADD(next_char);
 			skip_length = 0;

@@ -20,6 +20,16 @@
 #define SHADE 0x92
 #define DARK_SHADE 0x93
 #define FULL_BLOCK 0x88
+#define PALETTE_SIZE 264
+
+#define BLACK 0
+#define RED 1
+#define GREEN 2
+#define YELLOW 3
+#define BLUE 4
+#define MAGENTA 5
+#define CYAN 6
+#define WHITE 7
 
 // Globals related to terminal settings and properties.
 struct winsize ws;
@@ -100,11 +110,13 @@ typedef struct Color{
 	int fg;
 	int bg;
 	char c;
+    int r, g, b;
 } Color;
 
 Color palette[264];
 
 void init_palette(){
+    FILE* log = fopen("log.txt", "w");
 	int offset = 0;
 	for(int i=0; i<200; i++){
 		palette[i].fg = 91;
@@ -134,7 +146,7 @@ void init_palette(){
 
 	// Dim
 	for(int i=0; i<8; i++){
-		palette[offset].fg = 0;
+		palette[offset].fg = i + 30;;
 		palette[offset].bg = i + 40;
 		palette[offset++].c = ' ';
 	}
@@ -173,6 +185,102 @@ void init_palette(){
 		palette[offset].bg = fg + 40;
 		palette[offset++].c = FULL_BLOCK;
 	}
+
+    // Assign RGB values
+    for(int i = 0; i<PALETTE_SIZE; i++){
+        Color* color = &palette[offset];
+        color->r = 0;
+        color->g = 0;
+        color->b = 0;
+        int fg_r = 0;
+        int fg_g = 0;
+        int fg_b = 0;
+        int bg_r = 0;
+        int bg_g = 0;
+        int bg_b = 0;
+        if(color->c == ' ' ||
+        color->c == FULL_BLOCK){
+            int value = 255;
+            if(color->c == ' '){
+                value = 192;
+            }
+            switch(color->fg % 10){
+            case RED: fg_r = value; break;
+            case GREEN: fg_g = value; break;
+            case YELLOW: fg_r = value;
+                fg_g = value; break;
+            case BLUE: fg_b = value; break;
+            case MAGENTA: fg_r = value;
+                fg_b = value; break;
+            case CYAN: fg_b = value;
+                fg_g = value; break;
+            case WHITE: fg_r = value;
+                fg_g = value;
+                fg_b = value; break;
+            }
+            color->r = fg_r;
+            color->g = fg_g;
+            color->b = fg_b;
+            fprintf(log, "Color %d = %d, %d, %d\n", i,
+            color->r, color->g, color->b);
+        }
+        if(color->c == LIGHT_SHADE ||
+            color->c == SHADE ||
+            color->c == DARK_SHADE){
+
+            // Determine FG portion
+            int value;
+            switch(color->c){
+                case LIGHT_SHADE: value = 96; break;
+                case SHADE: value = 128; break;
+                case DARK_SHADE: value = 192; break;
+            }
+            if(color->fg / 10 == 3)
+                value = value * 3 / 4;
+
+            switch(color->fg % 10){
+            case RED: fg_r = value; break;
+            case GREEN: fg_g = value; break;
+            case YELLOW: fg_r = value;
+                fg_g = value; break;
+            case BLUE: fg_b = value; break;
+            case MAGENTA: fg_r = value;
+                fg_b = value; break;
+            case CYAN: fg_b = value;
+                fg_g = value; break;
+            case WHITE: fg_r = value;
+                fg_g = value;
+                fg_b = value; break;
+            }
+            // Determine BG portion
+            switch(color->c){
+                case LIGHT_SHADE: value = 43; break;
+                case SHADE: value = 86; break;
+                case DARK_SHADE: value = 129; break;
+            }
+
+            switch(color->bg % 10){
+            case RED: bg_r = value; break;
+            case GREEN: bg_g = value; break;
+            case YELLOW: bg_r = value;
+                bg_g = value; break;
+            case BLUE: bg_b = value; break;
+            case MAGENTA: bg_r = value;
+                bg_b = value; break;
+            case CYAN: bg_b = value;
+                bg_g = value; break;
+            case WHITE: fg_r = value;
+                bg_g = value;
+                bg_b = value; break;
+            }
+            color->r = fg_r + bg_r;
+            color->g = fg_g + bg_g;
+            color->b = fg_b + bg_b;
+            fprintf(log, "Color %d = %d, %d, %d\n", i,
+            color->r, color->g, color->b);
+        }
+    }
+    fclose(log);
 }
 
 void paint_cell(Canvas* canvas, int x, int y, int index){
@@ -232,7 +340,7 @@ int main(){
         char user_input = input();
         if (user_input == 'q') quit = 1;
         animate_fractal_noise(canvas, noise, ticks);
-        draw_color_bars(canvas);
+        //draw_color_bars(canvas);
         term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;
 		usleep(1000000/60);

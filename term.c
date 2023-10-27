@@ -39,6 +39,7 @@ int term_width, term_height;
 int display_width, display_height;
 
 int biggest_buffer, smallest_buffer;
+void paint_cell(Canvas* canvas, int x, int y, int index);
 
 void die(int i){
     exit(1);
@@ -115,8 +116,14 @@ typedef struct Color{
 
 Color palette[264];
 
-void init_palette(){
-    FILE* log = fopen("log.txt", "w");
+void init_palette(Canvas* canvas){
+
+    FILE* log;
+    log = fopen("log.txt", "w");
+    fseek(log, 0, SEEK_SET);
+    fputs("Log File:\n", log);
+    fprintf(log, "Here's a %d fprintf\n", 123);
+
 	int offset = 0;
 	for(int i=0; i<200; i++){
 		palette[i].fg = 91;
@@ -188,7 +195,7 @@ void init_palette(){
 
     // Assign RGB values
     for(int i = 0; i<PALETTE_SIZE; i++){
-        Color* color = &palette[offset];
+        Color* color = &palette[i];
         color->r = 0;
         color->g = 0;
         color->b = 0;
@@ -205,6 +212,12 @@ void init_palette(){
                 value = 192;
             }
             switch(color->fg % 10){
+            case BLACK:
+                if(color->fg / 10 == 9){
+                fg_r = 64;
+                fg_g = 64;
+                fg_b = 64;
+                } break;
             case RED: fg_r = value; break;
             case GREEN: fg_g = value; break;
             case YELLOW: fg_r = value;
@@ -221,8 +234,6 @@ void init_palette(){
             color->r = fg_r;
             color->g = fg_g;
             color->b = fg_b;
-            fprintf(log, "Color %d = %d, %d, %d\n", i,
-            color->r, color->g, color->b);
         }
         if(color->c == LIGHT_SHADE ||
             color->c == SHADE ||
@@ -239,6 +250,16 @@ void init_palette(){
                 value = value * 3 / 4;
 
             switch(color->fg % 10){
+            case BLACK:
+                if(color->fg / 10 == 3) break;
+                switch(color->c){
+                case LIGHT_SHADE: value = 16; break;
+                case SHADE: value = 32; break;
+                case DARK_SHADE: value = 48; break;
+                }
+                color->r = value;
+                color->g = value;
+                color->b = value; break;
             case RED: fg_r = value; break;
             case GREEN: fg_g = value; break;
             case YELLOW: fg_r = value;
@@ -254,9 +275,9 @@ void init_palette(){
             }
             // Determine BG portion
             switch(color->c){
-                case LIGHT_SHADE: value = 43; break;
+                case LIGHT_SHADE: value = 129; break;
                 case SHADE: value = 86; break;
-                case DARK_SHADE: value = 129; break;
+                case DARK_SHADE: value = 43; break;
             }
 
             switch(color->bg % 10){
@@ -276,10 +297,36 @@ void init_palette(){
             color->r = fg_r + bg_r;
             color->g = fg_g + bg_g;
             color->b = fg_b + bg_b;
-            fprintf(log, "Color %d = %d, %d, %d\n", i,
-            color->r, color->g, color->b);
+        }
+        fprintf(log, "Color %d = %d, %d, %d\n", i,
+        color->r, color->g, color->b);
+    }
+
+    // Remove duplicates
+    int duplicates = 0;
+    int x = 0;
+    int y = 0;
+    for(int i=0; i<PALETTE_SIZE - 1; i++){
+        for(int j=i+1; j<PALETTE_SIZE; j++){
+            if(
+                palette[i].r == palette[j].r &&
+                palette[i].g == palette[j].g &&
+                palette[i].b == palette[j].b){
+                fprintf(log, "Color %d and color %d are both"
+                " %d, %d, %d\n", i, j, palette[i].r, palette[i].g, palette[i].b);
+                duplicates++;
+                paint_cell(canvas, x++, y, i);
+                paint_cell(canvas, x++, y, j);
+                paint_cell(canvas, x++, y, 0);
+
+                if(x > term_width - 3){
+                    x = 0;
+                    y++;
+                }
+            }
         }
     }
+    fprintf(log, "Duplicates: %d\n", duplicates);
     fclose(log);
 }
 
@@ -315,7 +362,6 @@ void draw_color_bars(Canvas* canvas){
 int main(){
 	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
 	srand(time(NULL));
-	init_palette();
 	biggest_buffer = 0;
 	smallest_buffer = MAX_VIEW_AREA;
     start_term();
@@ -324,6 +370,7 @@ int main(){
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
     Canvas* old_canvas = create_canvas(
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
+	init_palette(canvas);
     int noise[MAX_VIEW_AREA];
     fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
@@ -339,7 +386,7 @@ int main(){
     while(!quit){
         char user_input = input();
         if (user_input == 'q') quit = 1;
-        animate_fractal_noise(canvas, noise, ticks);
+        //animate_fractal_noise(canvas, noise, ticks);
         //draw_color_bars(canvas);
         term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;

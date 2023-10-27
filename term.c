@@ -14,10 +14,6 @@
 #include "term.h"
 #include "canvas.h"
 
-// I'm using extended UTF-8 symbols that require a three-byte
-// sequence. The first two bytes are always the same,
-// and for the third I use these defines to make them readable
-
 #define UTF_BYTE_0 0xE2
 #define UTF_BYTE_1 0x96
 #define LIGHT_SHADE 0x91
@@ -203,91 +199,48 @@ void draw_color_bars(Canvas* canvas){
         paint_cell(canvas, i + x, y, i);
         if(i > 0 && i % term_width == 0){
             y += 1;
-            x -= term_width;
+            x -= term_width + 1;
         }
     }
 }
 
-
 int main(){
-	//FILE* tty = fopen(ttyname(STDIN_FILENO), "w");
-
 	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
-
 	srand(time(NULL));
 	init_palette();
 	biggest_buffer = 0;
 	smallest_buffer = MAX_VIEW_AREA;
     start_term();
     int ticks = 0;
-
-		// Main screenbuffer
     Canvas* canvas = create_canvas(
     MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-
-		// Alternate screenbuffer, used to skip
-		// redrawing cells redunantly.
-		// This is by far the most important performance
-		// aspect in this code.
-		Canvas* old_canvas = create_canvas(
-			MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-
-		// Fractal noise texture
+    Canvas* old_canvas = create_canvas(
+    MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
     int noise[MAX_VIEW_AREA];
     fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
     noise);
-
-		// This is a gradient ramp, with dithering symbols
-		// of increasing intensity
-    char texture[] = {
-			' ',
-			/*
-			LIGHT_SHADE, 
-			LIGHT_SHADE, 
-			SHADE, 
-			SHADE, 
-			DARK_SHADE, 
-			DARK_SHADE, 
-			FULL_BLOCK,
-			*/
-			'.',
-			'/',
-			'#'
-		};
-
-		// This is the encoded output string that will be
-		// assembled and then pushed to stdout once per frame.
-		// It needs to be have room for, theoretically
-		// a color change sequence for every single cell,
-		// as well as two extra characters in case it's
-		// a unicode symbol.
-		int max_chars_per_cell = 
-			7 // Change both fg and bg color
-			+ 3; // In case it's unicode
+    int max_chars_per_cell = 
+        7 // Change both fg and bg color
+        + 3; // In case it's unicode
     int buf_size = 
-			MAX_VIEW_AREA * max_chars_per_cell +
-			3 + // Signal to reset cursor
-			1; // Room for null terminator
+        MAX_VIEW_AREA * max_chars_per_cell +
+        3 + // Signal to reset cursor
+        1; // Room for null terminator
     char* buffer = malloc(buf_size);
-		//char* buffer = mmap(NULL, buf_size, 
-	//			PROT_WRITE | PROT_READ, 0, tty, 0);
-
     int quit = 0;
     while(!quit){
-				char user_input = input();
+        char user_input = input();
         if (user_input == 'q') quit = 1;
-            //animate_fractal_noise(canvas, noise, ticks);
-            draw_color_bars(canvas);
-
+        animate_fractal_noise(canvas, noise, ticks);
+        draw_color_bars(canvas);
         term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;
 		usleep(1000000/60);
     }
-		//fflush(tty);
     end_term();
-		printf("Term dimensions: %d x %d\n", term_width, term_height);
-		printf("Biggest buffer: %d\n", biggest_buffer);
-		printf("Smallest buffer: %d\n", smallest_buffer);
+    printf("Term dimensions: %d x %d\n", term_width, term_height);
+    printf("Biggest buffer: %d\n", biggest_buffer);
+    printf("Smallest buffer: %d\n", smallest_buffer);
     return 0;
 }
 
@@ -305,6 +258,7 @@ int tty){
 		else if(ch == (char)DARK_SHADE){ADD_UTF(DARK_SHADE);} \
 		else if(ch == (char)FULL_BLOCK){ADD_UTF(FULL_BLOCK);} \
 		else *pointer++ = ch
+    // Move cursor to 1,1
 	buffer[0] = '\x1b';
 	buffer[1] = '[';
 	buffer[2] = 'H';
@@ -318,10 +272,10 @@ int tty){
 		fg_color = -1;
 		bg_color = -1;
 		char temp[12];
-		sprintf(temp, "\x1b[m");
-		for(int i=0; i<strlen(temp); i++){
-			ADD(temp[i]);
-		}
+        // Make sure "Bright" doesn't carry over to next line
+        ADD('\x1b');
+        ADD('[');
+        ADD('m');
 
 		for(int x = 0; x < term_width; x++){
 			int offset = x + y * MAX_VIEW_WIDTH;
@@ -362,7 +316,6 @@ int tty){
 
 			// Compare next character to character already onscreen,
 			// To see if we can just skip it.
-			//int offset = x + y + MAX_VIEW_WIDTH;
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			char old_char = old_canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			
@@ -372,7 +325,6 @@ int tty){
 			    skip_length++;
 			}
 			if(skip_length > 0){
-				//Why doesn't this work?
 				if(skip_length < 6){
 					for(int i=0; i<skip_length - 1; i++){
 						ADD(canvas->cells[offset - 1].character);
@@ -389,10 +341,10 @@ int tty){
 			ADD(next_char);
 			skip_length = 0;
 		}
-		ADD('\n');
+		if(skip_length > 0) ADD('\n');
 	}
 	// Cut off that last newline so the screen doesn't scroll
-	pointer--;
+	if(*(pointer-1) == '\n') pointer--;
 	//fwrite(buffer, 1, pointer - buffer, tty);
 	write(tty, buffer, pointer - buffer);
 	if(smallest_buffer > pointer - buffer) smallest_buffer = pointer - buffer;

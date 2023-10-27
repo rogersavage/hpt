@@ -2,32 +2,25 @@
 Minimal code for full-screen text "painting" in the terminal with fast
 full-screen refresh.
 
-The current version uses the following extended unicode characters
+The current version uses the following unicode characters
 for color dithering:
 
 Light Shade	- U+2591
-Shade				- U+2592
+Shade       - U+2592
 Dark Shade	- U+2593
 Full Block	- U+2588
 
-Tested and works for me on the following terminals:
+I have tested on Debian-based antiX 22 in the following terminals:
 
-XTerm
-RoxTerm
-AlacriTTY
-TTY in Debian-based antiX-22
+XTerm, URXVT, RoxTerm, AlacriTTy, KiTTY, FBTerm
 
-Works but is slow in:
+This works with all of them, although the clarity of the colors and
+dithering is best in KiTTY or in a real TTY. URXVT and RoxTerm have
+some slowdown on my machine.
 
-URXVT
-FBTerm
+In a TTY session (ctrl-alt-function key), I use the "VGA" font by running:
 
-Tested and works with the following fonts:
+sudo dpkg-reconfigure console-setup
 
-Monospace
-Liberation Mono
-Ubuntu Mono
-Less Perfect DOS VGA 437
-
-For my TTY, I have to use "sudo dpkg-reconfigure console-setup"
-and set the font to VGA at size 8x14.
+This gives me the best overall results, with KiTTY being a close
+second.

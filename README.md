@@ -23,4 +23,6 @@ In a TTY session (ctrl-alt-function key), I use the "VGA" font by running:
 sudo dpkg-reconfigure console-setup
 
 This gives me the best overall results, with KiTTY being a close
-second.
+second. The colors will look much better with a font size in which the
+dithering characters are not distorted. This is "VGA" 8x16 or 8x14 in a TTY,
+or for example Less Perfect DOS VGA 437 at 12pt.

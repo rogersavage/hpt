@@ -14,12 +14,12 @@
 #include "term.h"
 #include "canvas.h"
 
-#define UTF_BYTE_0 0xE2
-#define UTF_BYTE_1 0x96
-#define LIGHT_SHADE 0x91
-#define SHADE 0x92
-#define DARK_SHADE 0x93
-#define FULL_BLOCK 0x88
+#define UTF_BYTE_0 (char)0xE2
+#define UTF_BYTE_1 (char)0x96
+#define LIGHT_SHADE (char)0x91
+#define SHADE (char)0x92
+#define DARK_SHADE (char)0x93
+#define FULL_BLOCK (char)0x88
 #define PALETTE_SIZE 264
 
 #define BLACK 0
@@ -115,6 +115,75 @@ typedef struct Color{
 } Color;
 
 Color palette[264];
+Color culled_palette[323];
+
+int calc_hue(int r, int g, int b){
+	// Red max
+	if(r >=g && r >= b){
+		// Blue min
+		if(g <= b){
+			return(((g - b) / (r - g)) % 256);
+		}
+		if(b <= g){
+			return(((g - b) / (r - b)) % 256);
+		}
+	}
+
+	if(g >= r && g >= b){
+		if(r <= b){
+			return((512 + (b - r)/(g - r)) % 256);
+		}
+		if(b <= r){
+			return ((512 + (b - r)/(g - b)) % 256);
+		}
+	}
+
+	// Blue max
+	if(b >= r && b >= g){
+		if(r <= g){
+			return((1024 + (r - g)/(b - r)) % 256);
+		}
+		if(g <= r){
+			return((1024 + (r - g)/(b - g)) % 256);
+		}
+	}
+}
+
+void copy_color(Color* src, Color* dest){
+	dest->r = src->r;
+	dest->g = src->g;
+	dest->b = src->b;
+	dest->fg = src->fg;
+	dest->bg = src->bg;
+	dest->c = src->c;
+}
+		
+/*
+void quick_sort(Color* arr, Color* begin, Color* end, int (*compare)()){
+	int i, j, pivot, temp;
+	if(begin < end){
+		pivot = begin;
+		i = begin;
+		j = end;
+		while(i < j){
+			while(arr[i] <= arr[pivot] && i < end) i++;
+			while(arr[j] > arr[pivot]) j--;
+			if(i < j){
+				Color temp_color;
+				copy_color(&arr[i], &temp_color);
+				copy_color(&arr[j], &arr[i]);
+				copy_color(&temp_color, &arr[j]);
+			}
+		}
+		Color temp_color;
+		copy_color(&arr[pivot], &temp_color);
+		copy_color(&arr[j], &arr[pivot]);
+		copy_color(&temp_color, &arr[j]);
+		quick_sort(arr, begin, j-1, compare);
+		quick_sort(arr, j+1, end, compare);
+	}
+}
+*/
 
 void init_palette(Canvas* canvas){
 
@@ -242,9 +311,9 @@ void init_palette(Canvas* canvas){
             // Determine FG portion
             int value;
             switch(color->c){
-                case LIGHT_SHADE: value = 96; break;
-                case SHADE: value = 128; break;
-                case DARK_SHADE: value = 192; break;
+                case (char)LIGHT_SHADE: value = 96; break;
+                case (char)SHADE: value = 128; break;
+                case (char)DARK_SHADE: value = 192; break;
             }
             if(color->fg / 10 == 3)
                 value = value * 3 / 4;
@@ -253,9 +322,9 @@ void init_palette(Canvas* canvas){
             case BLACK:
                 if(color->fg / 10 == 3) break;
                 switch(color->c){
-                case LIGHT_SHADE: value = 16; break;
-                case SHADE: value = 32; break;
-                case DARK_SHADE: value = 48; break;
+                case (char)LIGHT_SHADE: value = 16; break;
+                case (char)SHADE: value = 32; break;
+                case (char)DARK_SHADE: value = 48; break;
                 }
                 color->r = value;
                 color->g = value;
@@ -275,9 +344,9 @@ void init_palette(Canvas* canvas){
             }
             // Determine BG portion
             switch(color->c){
-                case LIGHT_SHADE: value = 129; break;
-                case SHADE: value = 86; break;
-                case DARK_SHADE: value = 43; break;
+                case (char)LIGHT_SHADE: value = 129; break;
+                case (char)SHADE: value = 86; break;
+                case (char)DARK_SHADE: value = 43; break;
             }
 
             switch(color->bg % 10){
@@ -304,10 +373,10 @@ void init_palette(Canvas* canvas){
 
     // Remove duplicates
     int duplicates = 0;
-    int x = 0;
-    int y = 0;
-    for(int i=0; i<PALETTE_SIZE - 1; i++){
-        for(int j=i+1; j<PALETTE_SIZE; j++){
+		int good_index = 0;
+		int end = PALETTE_SIZE;
+    for(int i=0; i<end - 1; i++){
+        for(int j=i+1; j<end; j++){
             if(
                 palette[i].r == palette[j].r &&
                 palette[i].g == palette[j].g &&
@@ -315,18 +384,22 @@ void init_palette(Canvas* canvas){
                 fprintf(log, "Color %d and color %d are both"
                 " %d, %d, %d\n", i, j, palette[i].r, palette[i].g, palette[i].b);
                 duplicates++;
-                paint_cell(canvas, x++, y, i);
-                paint_cell(canvas, x++, y, j);
-                paint_cell(canvas, x++, y, 0);
-
-                if(x > term_width - 3){
-                    x = 0;
-                    y++;
-                }
+								for(int k=j; k<end-1; k++){
+									palette[k].r = palette[k+1].r;
+									palette[k].g = palette[k+1].g;
+									palette[k].b = palette[k+1].b;
+									palette[k].fg = palette[k+1].fg;
+									palette[k].bg = palette[k+1].bg;
+									palette[k].c = palette[k+1].c;
             }
+						end--;
+						j--;
+					}
+
         }
     }
     fprintf(log, "Duplicates: %d\n", duplicates);
+		fprintf(log, "Final length: %d\n", end);
     fclose(log);
 }
 
@@ -342,21 +415,29 @@ void animate_fractal_noise(Canvas* canvas, int* noise, int ticks){
         for(int x=0; x<term_width; x++){
             int offset = x + y * MAX_VIEW_WIDTH;
             paint_cell(canvas, x, y,
-                    (noise[offset] + ticks) / 12 % 264);
+                    (noise[offset] + ticks) / 8 % 229);
         }
     }
 }
 
 void draw_color_bars(Canvas* canvas){
-    int y = 0;
-    int x = 0;
-    for(int i=0; i<264; i++){
-        paint_cell(canvas, i + x, y, i);
-        if(i > 0 && i % term_width == 0){
-            y += 1;
-            x -= term_width + 1;
-        }
-    }
+	int rows = 11;
+	int box_height = term_height / rows;
+	int boxes_per_row = 229 / rows;
+	int box_width = term_width / boxes_per_row;
+
+	int color = 0;
+	for(int y=0; y<term_height; y+=box_height){
+		for(int x=0; x<term_width; x+=box_width){
+			for(int inner_y=y; inner_y<y+box_height; inner_y++){
+				for(int inner_x=x; inner_x<x+box_width; inner_x++){
+					paint_cell(canvas, inner_x, inner_y, color);
+				}
+			}
+			color++;
+			if(color >= 229) return;
+		}
+	}
 }
 
 int main(){
@@ -386,8 +467,8 @@ int main(){
     while(!quit){
         char user_input = input();
         if (user_input == 'q') quit = 1;
-        //animate_fractal_noise(canvas, noise, ticks);
-        //draw_color_bars(canvas);
+        animate_fractal_noise(canvas, noise, ticks);
+        draw_color_bars(canvas);
         term_refresh(buffer, canvas, old_canvas, tty);
         ticks++;
 		usleep(1000000/60);
@@ -409,9 +490,9 @@ int tty){
 	}
 	#define ADD(ch) \
 		if(ch == (char)LIGHT_SHADE){ADD_UTF(LIGHT_SHADE);} \
-		else if(ch == (char)SHADE){ADD_UTF(SHADE);} \
-		else if(ch == (char)DARK_SHADE){ADD_UTF(DARK_SHADE);} \
-		else if(ch == (char)FULL_BLOCK){ADD_UTF(FULL_BLOCK);} \
+		else if(ch == (char)SHADE){ADD_UTF(0x91);} \
+		else if(ch == (char)DARK_SHADE){ADD_UTF(0x92);} \
+		else if(ch == (char)FULL_BLOCK){ADD_UTF(0x88);} \
 		else *pointer++ = ch
     // Move cursor to 1,1
 	buffer[0] = '\x1b';

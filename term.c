@@ -41,6 +41,8 @@ int display_width, display_height;
 int biggest_buffer, smallest_buffer;
 void paint_cell(Canvas* canvas, int x, int y, int index);
 
+FILE* log;
+
 void die(int i){
     exit(1);
 }
@@ -115,38 +117,55 @@ typedef struct Color{
 } Color;
 
 Color palette[264];
-Color culled_palette[323];
 
-int calc_hue(int r, int g, int b){
-	// Red max
-	if(r >=g && r >= b){
-		// Blue min
-		if(g <= b){
-			return(((g - b) / (r - g)) % 256);
-		}
-		if(b <= g){
-			return(((g - b) / (r - b)) % 256);
-		}
-	}
+int calc_value(Color* color){
+    int r = color->r;
+    int g = color->g;
+    int b = color->b;
 
-	if(g >= r && g >= b){
-		if(r <= b){
-			return((512 + (b - r)/(g - r)) % 256);
-		}
-		if(b <= r){
-			return ((512 + (b - r)/(g - b)) % 256);
-		}
-	}
+    int max = r;
+    if(max < g) max = g;
+    if(max < b) max = b;
 
-	// Blue max
-	if(b >= r && b >= g){
-		if(r <= g){
-			return((1024 + (r - g)/(b - r)) % 256);
-		}
-		if(g <= r){
-			return((1024 + (r - g)/(b - g)) % 256);
-		}
-	}
+    int min = r;
+    if(min > g) min = g;
+    if(min > b) min = b;
+
+    return max + min / 4;
+}
+
+int calc_hue(Color* color){
+    int r = color->r;
+    int g = color->g;
+    int b = color->b;
+
+    int max = r;
+    if(max < g) max = g;
+    if(max < b) max = b;
+
+    int min = r;
+    if(min > g) min = g;
+    if(min > b) min = b;
+
+    if(max == min) return 0;
+
+    int diff = max - min;
+
+    if(max == r){
+        int hue = (60 * ((g - b) / diff) +
+        360) % 360;
+        return hue;
+    }
+    if(max == g){
+        int hue = (60 * ((b - r) / diff) +
+        120) % 360;
+        return hue;
+    }
+    if(max == b){
+        int hue = (60 * ((r - g) / diff) +
+        240) % 360;
+        return hue;
+    }
 }
 
 void copy_color(Color* src, Color* dest){
@@ -158,16 +177,16 @@ void copy_color(Color* src, Color* dest){
 	dest->c = src->c;
 }
 		
-/*
-void quick_sort(Color* arr, Color* begin, Color* end, int (*compare)()){
+void sort_colors(Color* arr, int begin, int end, int (*eval)(),
+FILE* log){
 	int i, j, pivot, temp;
 	if(begin < end){
 		pivot = begin;
 		i = begin;
 		j = end;
 		while(i < j){
-			while(arr[i] <= arr[pivot] && i < end) i++;
-			while(arr[j] > arr[pivot]) j--;
+			while(eval(&arr[i]) <= eval(&arr[pivot]) && i < end) i++;
+			while(eval(&arr[j]) > eval(&arr[pivot])) j--;
 			if(i < j){
 				Color temp_color;
 				copy_color(&arr[i], &temp_color);
@@ -179,15 +198,13 @@ void quick_sort(Color* arr, Color* begin, Color* end, int (*compare)()){
 		copy_color(&arr[pivot], &temp_color);
 		copy_color(&arr[j], &arr[pivot]);
 		copy_color(&temp_color, &arr[j]);
-		quick_sort(arr, begin, j-1, compare);
-		quick_sort(arr, j+1, end, compare);
+		sort_colors(arr, begin, j-1, eval, log);
+		sort_colors(arr, j+1, end, eval, log);
 	}
 }
-*/
 
 void init_palette(Canvas* canvas){
 
-    FILE* log;
     log = fopen("log.txt", "w");
     fseek(log, 0, SEEK_SET);
     fputs("Log File:\n", log);
@@ -367,8 +384,8 @@ void init_palette(Canvas* canvas){
             color->g = fg_g + bg_g;
             color->b = fg_b + bg_b;
         }
-        fprintf(log, "Color %d = %d, %d, %d\n", i,
-        color->r, color->g, color->b);
+        fprintf(log, "Color %d = (%d, %d, %d) Hue: %d\n", i,
+        color->r, color->g, color->b, calc_hue(color));
     }
 
     // Remove duplicates
@@ -400,6 +417,8 @@ void init_palette(Canvas* canvas){
     }
     fprintf(log, "Duplicates: %d\n", duplicates);
 		fprintf(log, "Final length: %d\n", end);
+    sort_colors(palette, 0, 229, calc_value, log);
+    sort_colors(palette, 0, 229, calc_hue, log);
     fclose(log);
 }
 

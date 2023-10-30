@@ -1,13 +1,13 @@
-term : \
-term.o \
+hpt: \
+hpt.o \
 fractal_noise.o \
 canvas.o
-	gcc term.o \
+	gcc hpt.o \
 		fractal_noise.o \
 		canvas.o \
-		-o term -g
-term.o : term.c
-	gcc -c term.c
+		-o hpt -g
+hpt.o : hpt.c
+	gcc -c hpt.c
 fractal_noise.o : fractal_noise.c
 	gcc -c fractal_noise.c
 canvas.o : canvas.c

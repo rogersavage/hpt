@@ -1,4 +1,4 @@
-# Hand-Painted Terminal
+# Minimal ANSI Renderer
 Minimal code for full-screen text "painting" in the terminal with fast
 full-screen refresh.
 

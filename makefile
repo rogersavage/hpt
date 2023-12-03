@@ -1,13 +1,13 @@
-mansir : \
-mansir.o \
+manr : \
+manr.o \
 fractal_noise.o \
 canvas.o
-	gcc mansir.o \
+	gcc manr.o \
 		fractal_noise.o \
 		canvas.o \
-		-o mansir -g
-mansir.o : mansir.c
-	gcc -c mansir.c
+		-o manr -g
+manr.o : manr.c
+	gcc -c manr.c
 fractal_noise.o : fractal_noise.c
 	gcc -c fractal_noise.c
 canvas.o : canvas.c

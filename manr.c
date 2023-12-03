@@ -11,7 +11,7 @@
 
 #include "fractal_noise.h"
 #include "constants.h"
-#include "mansir.h"
+#include "manr.h"
 #include "canvas.h"
 
 #define BLACK 30

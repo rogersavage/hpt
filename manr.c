@@ -13,6 +13,7 @@
 #include "constants.h"
 #include "manr.h"
 #include "canvas.h"
+#include "minunit.h"
 
 #define BLACK 30
 #define RED 31
@@ -168,97 +169,109 @@ int main(){
 	return 0;
 }
 
-void term_refresh(char* buffer, Canvas* canvas, Canvas* backbuffer,
-int tty){
-	#define ADD(ch) \
-		*pointer++ = ch
-	// Move cursor to 1,1
-	buffer[0] = '\x1b';
-	buffer[1] = '[';
-	buffer[2] = 'H';
-	char* pointer = buffer + 3;
-	char prev_char = '\0';
-	int skip_length = 0;
-	int fg_color;
-	int bg_color;
-
-	for(int y = 0; y < term_height; y++){
-		fg_color = -1;
-		bg_color = -1;
-
-		for(int x = 0; x < term_width; x++){
-			int offset = x + y * MAX_VIEW_WIDTH;
-			int next_fg_color = canvas->cells[offset].color;
-			int next_bg_color = canvas->cells[offset].bg_color;
-			int old_fg = backbuffer->cells[offset].color;
-			int old_bg = backbuffer->cells[offset].bg_color;
-
-			// Check if either or both the fg/bg color needs to be changed
-			if(fg_color != next_fg_color){
-				if(bg_color != next_bg_color){
-					ADD('\x1b');
-					ADD('[');
-					ADD(next_fg_color / 10 + '0');
-					ADD(next_fg_color % 10 + '0');
-					ADD(';');
-					ADD('4');
-					ADD(next_bg_color % 10 + '0');
-					ADD('m');
-					fg_color = next_fg_color;
-					bg_color = next_bg_color;
-				} else{
-					ADD('\x1b');
-					ADD('[');
-					ADD(next_fg_color / 10 + '0');
-					ADD(next_fg_color % 10 + '0');
-					ADD('m');
-					fg_color = next_fg_color;
-				}
-			} else if(bg_color != next_bg_color){
-					ADD('\x1b');
-					ADD('[');
-					ADD('4');
-					ADD(next_bg_color % 10 + '0');
-					ADD('m');
-					bg_color = next_bg_color;
-			}
-
-			// Compare next character to character already onscreen,
-			// To see if we can just skip it.
-			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
-			char old_char = backbuffer->cells[x + y * MAX_VIEW_WIDTH].character;
-			
-			if(next_char == old_char &&
-                next_fg_color == old_fg &&
-                next_bg_color == old_bg){
-			    skip_length++;
-			}
-			if(skip_length > 0){
-				if(skip_length < 6){
-					for(int i=0; i<skip_length - 1; i++){
-						ADD(canvas->cells[offset - 1].character);
-					}
-				} else{
-					ADD('\x1b');
-					ADD('[');
-					if(x > 99) ADD((x) / 100 + '0');
-					if(x > 9) ADD((x) % 100 / 10 + '0');
-					ADD((x) % 10 + '0');
-					ADD('G');
-				}
-			}
-			ADD(next_char);
-			skip_length = 0;
-		}
-		if(skip_length > 0) ADD('\n');
-	}
-	// Cut off that last newline so the screen doesn't scroll
-	if(*(pointer-1) == '\n') pointer--;
-	//fwrite(buffer, 1, pointer - buffer, tty);
-	write(tty, buffer, pointer - buffer);
-	
-	// Flip buffer
+void flipBuffer(Canvas* canvas, Canvas* backbuffer){
 	Cell* temp = canvas->cells;
 	canvas->cells = backbuffer->cells;
 	backbuffer->cells = temp;
 }
+
+void addChar(char** pointer, char character){
+	(**pointer) = character;
+	(*pointer)++;
+}
+
+void changeFgBgColor(char** pointer, int fgColor, int bgColor){
+	addChar(pointer, '\x1b');
+	addChar(pointer, '[');
+	addChar(pointer, fgColor / 10 + '0');
+	addChar(pointer, fgColor % 10 + '0');
+	addChar(pointer, ';');
+	addChar(pointer, '4');
+	addChar(pointer, bgColor % 10 + '0');
+	addChar(pointer, 'm');
+}
+
+void changeFgColor(char** pointer, int fgColor){
+	addChar(pointer, '\x1b');
+	addChar(pointer, '[');
+	addChar(pointer, fgColor / 10 + '0');
+	addChar(pointer, fgColor % 10 + '0');
+	addChar(pointer, 'm');
+}
+
+void changeBgColor(char** pointer, int bgColor){
+	addChar(pointer, '\x1b');
+	addChar(pointer, '[');
+	addChar(pointer, bgColor / 10 + '0');
+	addChar(pointer, bgColor % 10 + '0');
+	addChar(pointer, 'm');
+}
+
+void cursorReturn(char** pointer){
+	addChar(pointer, '\x1b');
+	addChar(pointer, '[');
+	addChar(pointer, 'H');
+}
+
+void moveToColumn(char** pointer, int x){
+	addChar(pointer, '\x1b');
+	addChar(pointer, '[');
+	if(x >= 100) addChar(pointer, x / 100 + '0');
+	if(x >= 10) addChar(pointer, x % 100 / 10 + '0');
+	addChar(pointer, x % 10 + '0');
+	addChar(pointer, 'G');
+}
+
+void updateColor(char** pointer, int* currentFgColor, int* currentBgColor,
+	int nextFgColor, int nextBgColor){
+
+	if(*currentFgColor != nextFgColor){
+		if(*currentBgColor != nextBgColor){
+			changeFgBgColor(pointer, nextFgColor, nextBgColor);
+			(*currentFgColor) = nextFgColor;
+			(*currentBgColor) = nextBgColor;
+		} else{
+			changeFgColor(pointer, nextFgColor);
+			(*currentFgColor) = nextFgColor;
+		}
+	} else if(*currentBgColor != nextBgColor){
+			changeBgColor(pointer, nextBgColor);
+			(*currentBgColor) = nextBgColor;
+	}
+}
+
+void term_refresh(char* buffer, Canvas* canvas, Canvas* backbuffer, int tty){
+	char* pointer = buffer;
+	cursorReturn(&pointer);
+	char prev_char = '\0';
+	int skip_length = 0;
+	int currentFgColor;
+	int currentBgColor;
+
+	for(int y = 0; y < term_height; y++){
+		currentFgColor = -1;
+		currentBgColor = -1;
+
+		for(int x = 0; x < term_width; x++){
+			int offset = x + y * MAX_VIEW_WIDTH;
+			int nextFgColor = canvas->cells[offset].color;
+			int nextBgColor = canvas->cells[offset].bg_color;
+			int oldFgColor = backbuffer->cells[offset].color;
+			int oldBgColor = backbuffer->cells[offset].bg_color;
+
+			// Check if either or both the fg/bg color needs to be changed
+			updateColor(&pointer, &currentFgColor, &currentBgColor,
+			nextFgColor, nextBgColor);
+			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			addChar(&pointer, next_char);
+			skip_length = 0;
+		}
+		skip_length = 0;
+		addChar(&pointer, '\n');
+	}
+	// Cut off that last newline so the screen doesn't scroll
+	if(*(pointer-1) == '\n') pointer--;
+	write(tty, buffer, pointer - buffer);
+	flipBuffer(canvas, backbuffer);
+}
+

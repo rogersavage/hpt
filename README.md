@@ -66,9 +66,11 @@ of a color and the background version of that same color. So, for example,
 setCanvasFgColor(canvas, x, y, BG_BLACK) will produce garbage output.  
   
 Poll non-blocking keyboard input using input():  
+
 	char user_input = input();  
   
 Render the window onscreen using termRefresh():  
+
 	termRefresh(window);  
   
   

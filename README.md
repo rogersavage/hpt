@@ -18,7 +18,9 @@ functions.
 	void setCanvasFgColor(Canvas*, int x, int y, int color);  
   
 You can also create separate canvases using:  
+
 	Canvas* createCanvas(int width, int height),  
+
 but there is currently no "blit" function.  
   
 Note that this is an ANSI-only renderer, and canvas cells can only hold a char.  

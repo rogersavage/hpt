@@ -160,8 +160,6 @@ void updateColor(char** pointer, int* currentFgColor, int* currentBgColor,
 void termRefresh(Window* window){
 	char* pointer = window->buffer;
 	cursorReturn(&pointer);
-	char prev_char = '\0';
-	int skip_length = 0;
 	int currentFgColor;
 	int currentBgColor;
 
@@ -177,13 +175,11 @@ void termRefresh(Window* window){
 					nextFgColor, nextBgColor);
 			char next_char = window->canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			addChar(&pointer, next_char);
-			skip_length = 0;
 		}
-		skip_length = 0;
 		addChar(&pointer, '\n');
 	}
 	// Cut off that last newline so the screen doesn't scroll
-	if(*(pointer-1) == '\n') pointer--;
+	pointer--;
 	write(window->tty, window->buffer, pointer - window->buffer);
 }
 

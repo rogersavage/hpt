@@ -6,3 +6,4 @@ int start_term();
 void endTerm(Window* window);
 
 void termRefresh(Window* window);
+void addChar(char** pointer, char character);

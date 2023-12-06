@@ -15,38 +15,13 @@
 #include "canvas.h"
 #include "minunit.h"
 
-#define BLACK 30
-#define RED 31
-#define GREEN 32
-#define YELLOW 33
-#define BLUE 34
-#define MAGENTA 35
-#define CYAN 36
-#define WHITE 37
-
-#define BR_BLACK 90
-#define BR_RED 91
-#define BR_GREEN 92
-#define BR_YELLOW 93
-#define BR_BLUE 94
-#define BR_MAGENTA 95
-#define BR_CYAN 96
-
-#define BG_BLACK 40
-#define BG_RED 41
-#define BG_GREEN 42
-#define BG_YELLOW 43
-#define BG_BLUE 44
-#define BG_MAGENTA 45
-#define BG_CYAN 46
-#define BG_WHITE 47
 
 
 // Globals related to terminal settings and properties.
 struct winsize ws;
 struct termios backup;
 struct termios t;
-int term_width, term_height;
+extern int term_width, term_height;
 int display_width, display_height;
 
 void die(int i){
@@ -114,6 +89,7 @@ char input(){
     read(1, &ch, 1);
     return ch;
 }
+/*
 void animate_fractal_noise(Canvas* canvas, int* noise, int ticks){
     for(int y=0; y<term_height; y++){
         for(int x=0; x<term_width; x++){
@@ -133,7 +109,9 @@ void draw_text(Canvas* canvas, int x, int y, char* text){
 		set_canvas_color(canvas, x + i, y, WHITE);
 	}
 }
+*/
 
+/*
 int main(){
 	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
 	start_term();
@@ -168,6 +146,7 @@ int main(){
 	end_term();
 	return 0;
 }
+*/
 
 void flipBuffer(Canvas* canvas, Canvas* backbuffer){
 	Cell* temp = canvas->cells;

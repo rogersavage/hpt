@@ -1,11 +1,15 @@
-manr : \
+demo : \
+demo.o \
 manr.o \
 fractal_noise.o \
 canvas.o
 	gcc manr.o \
+		demo.o \
 		fractal_noise.o \
 		canvas.o \
-		-o manr -g
+		-o demo -g
+demo.o : demo.c
+	gcc -c demo.c
 manr.o : manr.c
 	gcc -c manr.c
 fractal_noise.o : fractal_noise.c

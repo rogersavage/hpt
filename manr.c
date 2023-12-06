@@ -61,6 +61,7 @@ int start_term(){
     signal(SIGINT, die);
 		// Make input non-blocking
 		fcntl(2, F_SETFL, fcntl(2, F_GETFL) | O_NONBLOCK);
+		return open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
 }
 
 void restore(void){
@@ -88,70 +89,6 @@ char input(){
     char ch; 
     read(1, &ch, 1);
     return ch;
-}
-/*
-void animate_fractal_noise(Canvas* canvas, int* noise, int ticks){
-    for(int y=0; y<term_height; y++){
-        for(int x=0; x<term_width; x++){
-					int offset = x + y * MAX_VIEW_WIDTH;
-					int sample = noise[offset] + ticks;
-					int fg_color = sample / 8 % 10 + 30;
-					char* texture = " ./#";
-					set_canvas_character(canvas, x, y, texture[sample / 16 % 4]);
-					set_canvas_color(canvas, x, y, fg_color);
-        }
-    }
-}
-
-void draw_text(Canvas* canvas, int x, int y, char* text){
-	for(int i=0; i<strlen(text); i++){
-		set_canvas_character(canvas, x + i, y, text[i]);
-		set_canvas_color(canvas, x + i, y, WHITE);
-	}
-}
-*/
-
-/*
-int main(){
-	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
-	start_term();
-	int ticks = 0;
-	Canvas* canvas = create_canvas(
-	MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-	Canvas* backbuffer = create_canvas(
-	MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-	int noise[MAX_VIEW_AREA];
-	fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
-	noise);
-	int max_chars_per_cell = 
-			7 // Change both fg and bg color
-			+ 3; // In case it's unicode
-	int buf_size = 
-			MAX_VIEW_AREA * max_chars_per_cell +
-			3 + // Signal to reset cursor
-			1; // Room for null terminator
-	char* buffer = malloc(buf_size);
-	int quit = 0;
-	char* message = "Press 'q' to quit";
-	while(!quit){
-			char user_input = input();
-			if (user_input == 'q') quit = 1;
-			animate_fractal_noise(canvas, noise, ticks);
-			draw_text(canvas, term_width / 2 - strlen(message) / 2,
-					term_height / 2, message);
-			term_refresh(buffer, canvas, backbuffer, tty);
-			ticks++;
-	usleep(1000000/60);
-	}
-	end_term();
-	return 0;
-}
-*/
-
-void flipBuffer(Canvas* canvas, Canvas* backbuffer){
-	Cell* temp = canvas->cells;
-	canvas->cells = backbuffer->cells;
-	backbuffer->cells = temp;
 }
 
 void addChar(char** pointer, char character){
@@ -219,7 +156,7 @@ void updateColor(char** pointer, int* currentFgColor, int* currentBgColor,
 	}
 }
 
-void term_refresh(char* buffer, Canvas* canvas, Canvas* backbuffer, int tty){
+void term_refresh(char* buffer, Canvas* canvas, int tty){
 	char* pointer = buffer;
 	cursorReturn(&pointer);
 	char prev_char = '\0';
@@ -235,12 +172,8 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* backbuffer, int tty){
 			int offset = x + y * MAX_VIEW_WIDTH;
 			int nextFgColor = canvas->cells[offset].color;
 			int nextBgColor = canvas->cells[offset].bg_color;
-			int oldFgColor = backbuffer->cells[offset].color;
-			int oldBgColor = backbuffer->cells[offset].bg_color;
-
-			// Check if either or both the fg/bg color needs to be changed
 			updateColor(&pointer, &currentFgColor, &currentBgColor,
-			nextFgColor, nextBgColor);
+					nextFgColor, nextBgColor);
 			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			addChar(&pointer, next_char);
 			skip_length = 0;
@@ -251,6 +184,5 @@ void term_refresh(char* buffer, Canvas* canvas, Canvas* backbuffer, int tty){
 	// Cut off that last newline so the screen doesn't scroll
 	if(*(pointer-1) == '\n') pointer--;
 	write(tty, buffer, pointer - buffer);
-	flipBuffer(canvas, backbuffer);
 }
 

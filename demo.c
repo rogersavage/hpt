@@ -15,6 +15,7 @@
 #include "manr.h"
 #include "canvas.h"
 #include "minunit.h"
+#include "window.h"
 
 int term_width, term_height;
 
@@ -39,16 +40,9 @@ void draw_text(Canvas* canvas, int x, int y, char* text){
 }
 
 int main(){
-	int tty = open(ttyname(STDIN_FILENO), O_RDWR | O_SYNC);
-	start_term();
-	int ticks = 0;
-	Canvas* canvas = create_canvas(
-	MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-	Canvas* backbuffer = create_canvas(
-	MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
-	int noise[MAX_VIEW_AREA];
-	fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
-	noise);
+	/*
+	int tty = start_term();
+	Canvas* canvas = create_canvas(MAX_VIEW_WIDTH, MAX_VIEW_HEIGHT);
 	int max_chars_per_cell = 
 			7 // Change both fg and bg color
 			+ 3; // In case it's unicode
@@ -57,15 +51,21 @@ int main(){
 			3 + // Signal to reset cursor
 			1; // Room for null terminator
 	char* buffer = malloc(buf_size);
+	*/
+	int noise[MAX_VIEW_AREA];
+	fractal_noise(rand() % 128, 128, MAX_VIEW_WIDTH, 8, 1.0f, 
+	noise);
 	int quit = 0;
+	int ticks = 0;
+	Window* window = createWindow();
 	char* message = "Press 'q' to quit";
 	while(!quit){
 			char user_input = input();
 			if (user_input == 'q') quit = 1;
-			animate_fractal_noise(canvas, noise, ticks);
-			draw_text(canvas, term_width / 2 - strlen(message) / 2,
+			animate_fractal_noise(window->canvas, noise, ticks);
+			draw_text(window->canvas, term_width / 2 - strlen(message) / 2,
 					term_height / 2, message);
-			term_refresh(buffer, canvas, backbuffer, tty);
+			term_refresh(window->buffer, window->canvas, window->tty);
 			ticks++;
 	usleep(1000000/60);
 	}

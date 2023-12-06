@@ -1,6 +1,7 @@
+#include "canvas.h"
 
-void term_refresh();
 char input();
 int start_term();
 void end_term();
 
+void term_refresh(char* buffer, Canvas* canvas, int tty);

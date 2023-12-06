@@ -1,3 +1,6 @@
+#ifndef CANVAS_H
+#define CANVAS_H
+
 typedef struct cell_struct{
     int color;
     int bg_color;
@@ -17,3 +20,5 @@ void set_canvas_character(Canvas*, int x, int y,
 char character);
 void set_canvas_color(Canvas*, int x, int y,
 int color);
+
+#endif

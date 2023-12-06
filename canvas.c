@@ -2,36 +2,36 @@
 #include <stdlib.h>
 #include "constants.h"
 
-int get_canvas_bg_color(Canvas* canvas, 
+int getCanvasBgColor(Canvas* canvas, 
 int x, int y){
     return canvas->cells[x + y * MAX_VIEW_WIDTH].
     bg_color;
 }
 
-int get_canvas_color(Canvas* canvas, 
+int getCanvasFgColor(Canvas* canvas, 
 int x, int y){
     return canvas->cells[x + y * MAX_VIEW_WIDTH].
     color;
 }
 
-char get_canvas_character(Canvas* canvas,
+char getCanvasCharacter(Canvas* canvas,
 int x, int y){
     return canvas->cells[x + y * MAX_VIEW_WIDTH].
     character;
 }
 
-void set_canvas_color(Canvas* canvas,
+void setCanvasFgColor(Canvas* canvas,
 int x, int y, int color){
     canvas->cells[x + y * canvas->width].
     color = color;
 }
-void set_canvas_character(Canvas* canvas,
+void setCanvasCharacter(Canvas* canvas,
 int x, int y, char character){
     canvas->cells[x + y * canvas->width].
     character = character;
 }
 
-Canvas* create_canvas(int width, int height){
+Canvas* createCanvas(int width, int height){
     Canvas* new_canvas = malloc(sizeof(Canvas));
     new_canvas->width = width;
     new_canvas->height = height;

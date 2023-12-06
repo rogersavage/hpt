@@ -26,16 +26,16 @@ void animate_fractal_noise(Canvas* canvas, int* noise, int ticks){
 					int sample = noise[offset] + ticks;
 					int fg_color = sample / 32 % 10 + 30;
 					char* texture = " ./#";
-					set_canvas_character(canvas, x, y, texture[sample / 16 % 4]);
-					set_canvas_color(canvas, x, y, fg_color);
+					setCanvasCharacter(canvas, x, y, texture[sample / 16 % 4]);
+					setCanvasFgColor(canvas, x, y, fg_color);
         }
     }
 }
 
 void draw_text(Canvas* canvas, int x, int y, char* text){
 	for(int i=0; i<strlen(text); i++){
-		set_canvas_character(canvas, x + i, y, text[i]);
-		set_canvas_color(canvas, x + i, y, WHITE);
+		setCanvasCharacter(canvas, x + i, y, text[i]);
+		setCanvasFgColor(canvas, x + i, y, WHITE);
 	}
 }
 

@@ -1,9 +1,28 @@
 # Minimal ANSI Renderer
-Minimal code for full-screen text "painting" in the terminal with fast
-full-screen refresh.
-
-This is just a few hundred lines of code meant as an example, or to be
-copied and pasted rather than to be linked as a library.
+////////////////////////////////////////////////////////////////////////////////
+// Minimal code for full-screen text "painting" in the terminal with fast
+// full-screen refresh.
+////////////////////////////////////////////////////////////////////////////////
 
 A simple "make" will compile the demo, a simple color-cycling fractal
 noise animation.
+
+////////////////////////////////////////////////////////////////////////////////
+Initialize a window struct using createWindow():
+
+Window* window = createWindow();
+
+////////////////////////////////////////////////////////////////////////////////
+Poll non-blocking keyboard input using input():
+
+char user_input = input();
+
+////////////////////////////////////////////////////////////////////////////////
+Render the window onscreen using termRefresh():
+
+termRefresh(window);
+
+////////////////////////////////////////////////////////////////////////////////
+Clean up using endTerm();
+
+

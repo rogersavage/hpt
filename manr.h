@@ -1,7 +1,8 @@
 #include "canvas.h"
+#include "window.h"
 
 char input();
 int start_term();
-void end_term();
+void endTerm(Window* window);
 
-void term_refresh(char* buffer, Canvas* canvas, int tty);
+void termRefresh(Window* window);

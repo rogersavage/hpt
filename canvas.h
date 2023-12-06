@@ -13,6 +13,7 @@ typedef struct canvas_struct{
 } Canvas;
 
 Canvas* create_canvas(int width, int height);
+void freeCanvas(Canvas* canvas);
 int get_canvas_bg_color(Canvas*, int x, int y);
 int get_canvas_color(Canvas*, int x, int y);
 char get_canvas_character(Canvas*, int x, int y);

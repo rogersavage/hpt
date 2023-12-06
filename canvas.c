@@ -44,3 +44,8 @@ Canvas* create_canvas(int width, int height){
     }
     return new_canvas;
 }
+
+void freeCanvas(Canvas* canvas){
+	free(canvas->cells);
+	free(canvas);
+}

@@ -68,7 +68,7 @@ void restore(void){
     tcsetattr(1, TCSANOW, &backup);
 }
 
-void end_term(){
+void endTerm(Window* window){
     // Reset colors
     printf("\x1b[0m");
     // Clear the alternate buffer.
@@ -83,6 +83,7 @@ void end_term(){
 	    ~O_NONBLOCK);
     restore();
     fputs("\x1b[1;1H", stdout);
+		freeWindow(window);
 }
 
 char input(){
@@ -156,8 +157,8 @@ void updateColor(char** pointer, int* currentFgColor, int* currentBgColor,
 	}
 }
 
-void term_refresh(char* buffer, Canvas* canvas, int tty){
-	char* pointer = buffer;
+void termRefresh(Window* window){
+	char* pointer = window->buffer;
 	cursorReturn(&pointer);
 	char prev_char = '\0';
 	int skip_length = 0;
@@ -170,11 +171,11 @@ void term_refresh(char* buffer, Canvas* canvas, int tty){
 
 		for(int x = 0; x < term_width; x++){
 			int offset = x + y * MAX_VIEW_WIDTH;
-			int nextFgColor = canvas->cells[offset].color;
-			int nextBgColor = canvas->cells[offset].bg_color;
+			int nextFgColor = window->canvas->cells[offset].color;
+			int nextBgColor = window->canvas->cells[offset].bg_color;
 			updateColor(&pointer, &currentFgColor, &currentBgColor,
 					nextFgColor, nextBgColor);
-			char next_char = canvas->cells[x + y * MAX_VIEW_WIDTH].character;
+			char next_char = window->canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			addChar(&pointer, next_char);
 			skip_length = 0;
 		}
@@ -183,6 +184,6 @@ void term_refresh(char* buffer, Canvas* canvas, int tty){
 	}
 	// Cut off that last newline so the screen doesn't scroll
 	if(*(pointer-1) == '\n') pointer--;
-	write(tty, buffer, pointer - buffer);
+	write(window->tty, window->buffer, pointer - window->buffer);
 }
 

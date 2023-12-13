@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string.h>
 #include <termios.h>
@@ -14,8 +15,6 @@
 #include "manr.h"
 #include "canvas.h"
 #include "minunit.h"
-
-
 
 // Globals related to terminal settings and properties.
 struct winsize ws;
@@ -38,24 +37,24 @@ void resize(int i){
 }
 
 int start_term(){
-		puts("\x1b[s");
+		fputs("\x1b[s", stdout);
     // Enter the alternate buffer.
-    printf("\x1b[?1049h");
+    fputs("\x1b[?1049h", stdout);
 		// Turn off stdout buffering
     char ch_buffer;
     setvbuf(stdout, &ch_buffer, _IONBF, 1); 
     // Clear the screen.
-    printf("\x1b[2J");
+    fputs("\x1b[2J", stdout);
     // Hide the cursor.
-    printf("\x1b[?25l");
+    fputs("\x1b[?25l", stdout);
     // Save the initial term settings.
     tcgetattr(1, &backup);
     t = backup;
-    // Turn off echo and canonical
-    // mode.
+    // Turn off echo and canonical mode.
     t.c_lflag &= (~ECHO & ~ICANON);
     // Send the new settings to the term
     tcsetattr(1, TCSANOW, &t);
+		// Set up signals for term resize/quit
     signal(SIGWINCH, resize);
     resize(0);
     signal(SIGTERM, die);
@@ -71,20 +70,16 @@ void restore(void){
 
 void endTerm(Window* window){
     // Reset colors
-    printf("\x1b[0m");
+    fputs("\x1b[0m", stdout);
     // Clear the alternate buffer.
-    printf("\x1b[2J");
+    fputs("\x1b[2J", stdout);
     // Return to the standard buffer.
-    printf("\x1b[?1049l");
-		puts("\x1b[u");
+    fputs("\x1b[?1049l", stdout);
+		fputs("\x1b[u", stdout);
     // Show the cursor.
-    printf("\x1b[?25h");
-
-    fcntl(2, F_SETFL, fcntl(
-		2, F_GETFL) &
-	    ~O_NONBLOCK);
+    fputs("\x1b[?25h", stdout);
+    fcntl(2, F_SETFL, fcntl(2, F_GETFL) & ~O_NONBLOCK);
     restore();
-    //fputs("\x1b[1;1H", stdout);
 		freeWindow(window);
 }
 
@@ -178,10 +173,7 @@ void termRefresh(Window* window){
 			char next_char = window->canvas->cells[x + y * MAX_VIEW_WIDTH].character;
 			addChar(&pointer, next_char);
 		}
-		addChar(&pointer, '\n');
 	}
-	// Cut off that last newline so the screen doesn't scroll
-	pointer--;
 	write(window->tty, window->buffer, pointer - window->buffer);
 }
 

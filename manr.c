@@ -38,8 +38,9 @@ void resize(int i){
 }
 
 int start_term(){
+		puts("\x1b[s");
     // Enter the alternate buffer.
-    printf("\x1b[?1049H");
+    printf("\x1b[?1049h");
 		// Turn off stdout buffering
     char ch_buffer;
     setvbuf(stdout, &ch_buffer, _IONBF, 1); 
@@ -74,7 +75,8 @@ void endTerm(Window* window){
     // Clear the alternate buffer.
     printf("\x1b[2J");
     // Return to the standard buffer.
-    printf("\x1b[?1049L");
+    printf("\x1b[?1049l");
+		puts("\x1b[u");
     // Show the cursor.
     printf("\x1b[?25h");
 
@@ -82,7 +84,7 @@ void endTerm(Window* window){
 		2, F_GETFL) &
 	    ~O_NONBLOCK);
     restore();
-    fputs("\x1b[1;1H", stdout);
+    //fputs("\x1b[1;1H", stdout);
 		freeWindow(window);
 }
 
